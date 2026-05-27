@@ -1,0 +1,38 @@
+site_name: PayloadProbe Lab
+site_description: XML mock response probing service built with Spring Boot, Docker, Kubernetes, and live portfolio documentation.
+site_url: https://j4vedskh.github.io/payloadprobe-lab/
+repo_url: https://github.com/J4vedskh/payloadprobe-lab
+repo_name: J4vedskh/payloadprobe-lab
+theme:
+  name: material
+  language: en
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.instant
+    - content.code.copy
+    - toc.follow
+  palette:
+    - scheme: default
+      primary: teal
+      accent: indigo
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+nav:
+  - Overview: index.md
+  - Architecture: architecture.md
+  - API Reference: api-reference.md
+  - Setup Guide: setup-guide.md
+  - Runbook: runbook.md
+  - Roadmap: roadmap.md
+  - Daily Progress: daily-progress.md
+extra_css:
+  - stylesheets/extra.css

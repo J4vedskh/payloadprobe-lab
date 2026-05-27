@@ -1,0 +1,5 @@
+{
+  "openTest": "<Open>15</Open>",
+  "FdLiquidatTestMock": "<MatDate>1722497647</MatDate><AmountRedeem>100</AmountRedeem>",
+  "NtbtdMockTest": "<S:Envelope xmlns:S=\"http://schemas.xmlsoap.org/soap/envelope/\"><S:Body><transactionResponse><status><errorCode>0</errorCode><replyText>Success</replyText></status><responseCode>1002</responseCode><responseMsg>Reversal completed successfully</responseMsg></transactionResponse></S:Body></S:Envelope>"
+}

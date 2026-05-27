@@ -1,0 +1,208 @@
+openapi: 3.0.3
+info:
+  title: PayloadProbe Lab API
+  version: 0.1.0
+  description: API for managing named XML mock responses.
+servers:
+  - url: https://j4vedskh.github.io/payloadprobe-lab
+    description: Documentation site
+  - url: http://localhost:8080
+    description: Local development
+paths:
+  /api/responses:
+    get:
+      summary: List response keys
+      responses:
+        "200":
+          description: Response catalog
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PayloadCatalogResponse"
+  /api/responses/{key}:
+    parameters:
+      - $ref: "#/components/parameters/Key"
+    get:
+      summary: Fetch XML response
+      responses:
+        "200":
+          description: XML response
+          content:
+            application/xml:
+              schema:
+                type: string
+        "404":
+          description: Key not found
+    post:
+      summary: Create XML response
+      requestBody:
+        required: true
+        content:
+          application/xml:
+            schema:
+              type: string
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "409":
+          description: Key already exists
+    put:
+      summary: Update XML response
+      requestBody:
+        required: true
+        content:
+          application/xml:
+            schema:
+              type: string
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "404":
+          description: Key not found
+    delete:
+      summary: Delete XML response
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "404":
+          description: Key not found
+  /api/responses/default:
+    post:
+      summary: Return default XML sample
+      responses:
+        "200":
+          description: Default XML
+          content:
+            application/xml:
+              schema:
+                type: string
+  /actuator/health:
+    get:
+      summary: Health status
+      responses:
+        "200":
+          description: Health status
+  /fetch/{key}:
+    parameters:
+      - $ref: "#/components/parameters/Key"
+    get:
+      summary: Legacy fetch alias
+      responses:
+        "200":
+          description: XML response or legacy not-found XML
+    post:
+      summary: Legacy POST fetch alias
+      responses:
+        "200":
+          description: XML response or legacy not-found XML
+  /add/{key}:
+    parameters:
+      - $ref: "#/components/parameters/Key"
+    post:
+      summary: Legacy create alias
+      requestBody:
+        required: true
+        content:
+          application/xml:
+            schema:
+              type: string
+      responses:
+        "201":
+          description: Created
+        "409":
+          description: Key already exists
+  /update/{key}:
+    parameters:
+      - $ref: "#/components/parameters/Key"
+    post:
+      summary: Legacy update alias
+      requestBody:
+        required: true
+        content:
+          application/xml:
+            schema:
+              type: string
+      responses:
+        "200":
+          description: Updated
+        "404":
+          description: Key not found
+  /delete/{key}:
+    parameters:
+      - $ref: "#/components/parameters/Key"
+    delete:
+      summary: Legacy delete alias
+      responses:
+        "200":
+          description: Deleted
+        "404":
+          description: Key not found
+  /fetchAll:
+    get:
+      summary: Legacy list alias
+      responses:
+        "200":
+          description: Response catalog
+  /default:
+    get:
+      summary: Legacy default XML alias
+      responses:
+        "200":
+          description: Default XML
+    post:
+      summary: Legacy default XML alias
+      responses:
+        "200":
+          description: Default XML
+  /help:
+    get:
+      summary: Legacy endpoint catalog
+      responses:
+        "200":
+          description: Endpoint catalog
+components:
+  parameters:
+    Key:
+      name: key
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: "^[A-Za-z0-9._-]{1,120}$"
+  schemas:
+    PayloadCatalogResponse:
+      type: object
+      required:
+        - count
+        - keys
+      properties:
+        count:
+          type: integer
+          example: 3
+        keys:
+          type: array
+          items:
+            type: string
+          example:
+            - openTest
+            - paymentSuccess
+    MessageResponse:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
+          example: Response created for key: paymentSuccess
