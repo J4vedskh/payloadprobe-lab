@@ -33,6 +33,8 @@ paths:
                 type: string
         "404":
           description: Key not found
+        "400":
+          $ref: "#/components/responses/InvalidKey"
     post:
       summary: Create XML response
       requestBody:
@@ -50,6 +52,8 @@ paths:
                 $ref: "#/components/schemas/MessageResponse"
         "409":
           description: Key already exists
+        "400":
+          $ref: "#/components/responses/InvalidKey"
     put:
       summary: Update XML response
       requestBody:
@@ -67,6 +71,8 @@ paths:
                 $ref: "#/components/schemas/MessageResponse"
         "404":
           description: Key not found
+        "400":
+          $ref: "#/components/responses/InvalidKey"
     delete:
       summary: Delete XML response
       responses:
@@ -78,6 +84,8 @@ paths:
                 $ref: "#/components/schemas/MessageResponse"
         "404":
           description: Key not found
+        "400":
+          $ref: "#/components/responses/InvalidKey"
   /api/responses/default:
     post:
       summary: Return default XML sample
@@ -102,11 +110,15 @@ paths:
       responses:
         "200":
           description: XML response or legacy not-found XML
+        "400":
+          $ref: "#/components/responses/InvalidKey"
     post:
       summary: Legacy POST fetch alias
       responses:
         "200":
           description: XML response or legacy not-found XML
+        "400":
+          $ref: "#/components/responses/InvalidKey"
   /add/{key}:
     parameters:
       - $ref: "#/components/parameters/Key"
@@ -123,6 +135,8 @@ paths:
           description: Created
         "409":
           description: Key already exists
+        "400":
+          $ref: "#/components/responses/InvalidKey"
   /update/{key}:
     parameters:
       - $ref: "#/components/parameters/Key"
@@ -139,6 +153,8 @@ paths:
           description: Updated
         "404":
           description: Key not found
+        "400":
+          $ref: "#/components/responses/InvalidKey"
   /delete/{key}:
     parameters:
       - $ref: "#/components/parameters/Key"
@@ -149,6 +165,8 @@ paths:
           description: Deleted
         "404":
           description: Key not found
+        "400":
+          $ref: "#/components/responses/InvalidKey"
   /fetchAll:
     get:
       summary: Legacy list alias
@@ -173,6 +191,15 @@ paths:
         "200":
           description: Endpoint catalog
 components:
+  responses:
+    InvalidKey:
+      description: Invalid response key
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/MessageResponse"
+          example:
+            message: Invalid response key. Use 1-120 letters, numbers, dots, underscores, or hyphens.
   parameters:
     Key:
       name: key

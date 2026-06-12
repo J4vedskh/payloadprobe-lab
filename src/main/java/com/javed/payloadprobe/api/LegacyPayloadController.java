@@ -2,10 +2,12 @@ package com.javed.payloadprobe.api;
 
 import com.javed.payloadprobe.service.DefaultPayloads;
 import com.javed.payloadprobe.store.PayloadResponseStore;
+import jakarta.validation.constraints.Pattern;
 import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -14,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
+@Validated
 public class LegacyPayloadController {
 
     private final PayloadResponseStore store;
@@ -23,12 +26,12 @@ public class LegacyPayloadController {
     }
 
     @GetMapping(value = "/fetch/{key}", produces = {MediaType.APPLICATION_XML_VALUE, MediaType.TEXT_XML_VALUE})
-    public ResponseEntity<String> fetchXmlGet(@PathVariable String key) {
+    public ResponseEntity<String> fetchXmlGet(@PathVariable @Pattern(regexp = "[A-Za-z0-9._-]{1,120}") String key) {
         return fetchLegacyXml(key);
     }
 
     @PostMapping(value = "/fetch/{key}", produces = {MediaType.APPLICATION_XML_VALUE, MediaType.TEXT_XML_VALUE})
-    public ResponseEntity<String> fetchXmlPost(@PathVariable String key) {
+    public ResponseEntity<String> fetchXmlPost(@PathVariable @Pattern(regexp = "[A-Za-z0-9._-]{1,120}") String key) {
         return fetchLegacyXml(key);
     }
 
@@ -36,7 +39,9 @@ public class LegacyPayloadController {
             value = "/add/{key}",
             consumes = {MediaType.APPLICATION_XML_VALUE, MediaType.TEXT_XML_VALUE, MediaType.TEXT_PLAIN_VALUE},
             produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<MessageResponse> addXml(@PathVariable String key, @RequestBody String xmlInput) {
+    public ResponseEntity<MessageResponse> addXml(
+            @PathVariable @Pattern(regexp = "[A-Za-z0-9._-]{1,120}") String key,
+            @RequestBody String xmlInput) {
         if (!store.create(key, xmlInput)) {
             return ResponseEntity.status(HttpStatus.CONFLICT)
                     .body(new MessageResponse("Response for the given key is already present, try update or delete commands"));
@@ -49,7 +54,9 @@ public class LegacyPayloadController {
             value = "/update/{key}",
             consumes = {MediaType.APPLICATION_XML_VALUE, MediaType.TEXT_XML_VALUE, MediaType.TEXT_PLAIN_VALUE},
             produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<MessageResponse> updateXml(@PathVariable String key, @RequestBody String xmlInput) {
+    public ResponseEntity<MessageResponse> updateXml(
+            @PathVariable @Pattern(regexp = "[A-Za-z0-9._-]{1,120}") String key,
+            @RequestBody String xmlInput) {
         if (!store.update(key, xmlInput)) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(new MessageResponse("Response for the given key does not exist, try add command"));
@@ -58,7 +65,8 @@ public class LegacyPayloadController {
     }
 
     @DeleteMapping(value = "/delete/{key}", produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<MessageResponse> deleteXml(@PathVariable String key) {
+    public ResponseEntity<MessageResponse> deleteXml(
+            @PathVariable @Pattern(regexp = "[A-Za-z0-9._-]{1,120}") String key) {
         if (!store.delete(key)) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(new MessageResponse("Response for the given key does not exist, or has been deleted already"));
