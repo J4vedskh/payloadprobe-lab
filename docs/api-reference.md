@@ -15,6 +15,8 @@ older PayloadProbe clients have a migration path.
 | `POST` | `/api/responses/default` | Default XML sample |
 | `GET` | `/actuator/health` | Spring Boot health status |
 
+Keys are limited to 1-120 letters, numbers, dots, underscores, or hyphens. Invalid keys return `400` with a JSON error body.
+
 ## Legacy Aliases
 
 | Method | Path | Notes |
@@ -28,6 +30,8 @@ older PayloadProbe clients have a migration path.
 | `GET` | `/default` | Default XML sample |
 | `POST` | `/default` | Default XML sample |
 | `GET` | `/help` | Endpoint catalog |
+
+Legacy aliases use the same key validation rules as the modern API.
 
 ## OpenAPI
 

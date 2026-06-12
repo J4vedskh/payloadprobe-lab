@@ -132,6 +132,22 @@ class PayloadProbeApplicationTests {
         assertThat(help.getBody()).contains("/api/responses");
     }
 
+    @Test
+    void rejectsInvalidKeysWithJsonError() {
+        ResponseEntity<String> modern = restTemplate.getForEntity(
+                url("/api/responses/bad%20key"),
+                String.class);
+        assertThat(modern.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(modern.getHeaders().getContentType()).isEqualTo(MediaType.APPLICATION_JSON);
+        assertThat(modern.getBody()).contains("Invalid response key");
+
+        ResponseEntity<String> legacy = restTemplate.getForEntity(
+                url("/fetch/bad%20key"),
+                String.class);
+        assertThat(legacy.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(legacy.getBody()).contains("Invalid response key");
+    }
+
     private HttpEntity<String> xmlEntity(String xml) {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_XML);
