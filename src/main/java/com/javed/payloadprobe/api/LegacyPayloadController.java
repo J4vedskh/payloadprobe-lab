@@ -100,10 +100,13 @@ public class LegacyPayloadController {
                 new ApiEndpoint("DELETE", "/api/responses/{key}", "Delete an XML response."),
                 new ApiEndpoint("POST", "/api/responses/default", "Return a default XML response sample."),
                 new ApiEndpoint("GET", "/fetch/{key}", "Legacy alias for fetching XML by key."),
+                new ApiEndpoint("POST", "/fetch/{key}", "Legacy POST alias for fetching XML by key."),
                 new ApiEndpoint("POST", "/add/{key}", "Legacy alias for adding XML by key."),
                 new ApiEndpoint("POST", "/update/{key}", "Legacy alias for updating XML by key."),
                 new ApiEndpoint("DELETE", "/delete/{key}", "Legacy alias for deleting XML by key."),
                 new ApiEndpoint("GET", "/fetchAll", "Legacy alias for listing response keys."),
+                new ApiEndpoint("GET", "/default", "Legacy alias for returning the default XML response."),
+                new ApiEndpoint("POST", "/default", "Legacy POST alias for returning the default XML response."),
                 new ApiEndpoint("GET", "/help", "List supported endpoints.")));
     }
 
