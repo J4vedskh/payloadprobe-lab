@@ -1,9 +1,12 @@
 # Roadmap
 
+## Completed
+
+- Validate modern and legacy write payloads with stable JSON error responses.
+- Cover every legacy alias with controller-level contract tests.
+
 ## Near Term
 
-- Add request payload validation and clear API error bodies.
-- Add controller-level tests for every legacy alias.
 - Add generated OpenAPI publishing to the documentation site.
 - Add Docker image publishing through GitHub Actions.
 

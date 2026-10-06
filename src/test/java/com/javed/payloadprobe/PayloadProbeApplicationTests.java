@@ -1,160 +1,154 @@
 package com.javed.payloadprobe;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasItem;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.javed.payloadprobe.api.MessageResponse;
-import com.javed.payloadprobe.api.PayloadCatalogResponse;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.web.client.TestRestTemplate;
-import org.springframework.boot.test.web.server.LocalServerPort;
-import org.springframework.core.ParameterizedTypeReference;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
+import org.springframework.test.web.servlet.MockMvc;
 
 @SpringBootTest(
-        webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-        properties = "payloadprobe.store.path=target/test-data/xmlResponses-${random.uuid}.json")
+        properties = {
+            "payloadprobe.store.path=target/test-data/xmlResponses-${random.uuid}.json",
+            "management.health.diskspace.enabled=false"
+        })
+@AutoConfigureMockMvc
 class PayloadProbeApplicationTests {
 
-    @LocalServerPort
-    int port;
-
     @Autowired
-    TestRestTemplate restTemplate;
+    MockMvc mockMvc;
 
     @Test
-    void fetchesSeededXmlResponse() {
-        ResponseEntity<String> response = restTemplate.getForEntity(url("/api/responses/openTest"), String.class);
-
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(response.getHeaders().getContentType()).isEqualTo(MediaType.APPLICATION_XML);
-        assertThat(response.getBody()).contains("<Open>15</Open>");
+    void fetchesSeededXmlResponse() throws Exception {
+        mockMvc.perform(get("/api/responses/openTest"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_XML))
+                .andExpect(content().string(containsString("<Open>15</Open>")));
     }
 
     @Test
-    void createsListsUpdatesAndDeletesXmlResponse() {
+    void createsListsUpdatesAndDeletesXmlResponse() throws Exception {
         String key = "demo-" + UUID.randomUUID();
         String initialXml = "<response><status>created</status></response>";
         String updatedXml = "<response><status>updated</status></response>";
 
-        ResponseEntity<MessageResponse> created = restTemplate.exchange(
-                url("/api/responses/" + key),
-                HttpMethod.POST,
-                xmlEntity(initialXml),
-                MessageResponse.class);
-        assertThat(created.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        mockMvc.perform(post("/api/responses/{key}", key)
+                        .contentType(MediaType.APPLICATION_XML)
+                        .content(initialXml))
+                .andExpect(status().isCreated());
 
-        ResponseEntity<MessageResponse> duplicate = restTemplate.exchange(
-                url("/api/responses/" + key),
-                HttpMethod.POST,
-                xmlEntity(initialXml),
-                MessageResponse.class);
-        assertThat(duplicate.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        mockMvc.perform(post("/api/responses/{key}", key)
+                        .contentType(MediaType.APPLICATION_XML)
+                        .content(initialXml))
+                .andExpect(status().isConflict());
 
-        ResponseEntity<PayloadCatalogResponse> catalog = restTemplate.exchange(
-                url("/api/responses"),
-                HttpMethod.GET,
-                HttpEntity.EMPTY,
-                new ParameterizedTypeReference<>() {
-                });
-        assertThat(catalog.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(catalog.getBody().keys()).contains(key);
+        mockMvc.perform(get("/api/responses"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.keys").isArray())
+                .andExpect(jsonPath("$.keys").value(hasItem(key)));
 
-        ResponseEntity<MessageResponse> updated = restTemplate.exchange(
-                url("/api/responses/" + key),
-                HttpMethod.PUT,
-                xmlEntity(updatedXml),
-                MessageResponse.class);
-        assertThat(updated.getStatusCode()).isEqualTo(HttpStatus.OK);
+        mockMvc.perform(put("/api/responses/{key}", key)
+                        .contentType(MediaType.APPLICATION_XML)
+                        .content(updatedXml))
+                .andExpect(status().isOk());
 
-        ResponseEntity<String> fetched = restTemplate.getForEntity(url("/api/responses/" + key), String.class);
-        assertThat(fetched.getBody()).contains("updated");
+        mockMvc.perform(get("/api/responses/{key}", key))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("updated")));
 
-        ResponseEntity<MessageResponse> deleted = restTemplate.exchange(
-                url("/api/responses/" + key),
-                HttpMethod.DELETE,
-                HttpEntity.EMPTY,
-                MessageResponse.class);
-        assertThat(deleted.getStatusCode()).isEqualTo(HttpStatus.OK);
+        mockMvc.perform(delete("/api/responses/{key}", key))
+                .andExpect(status().isOk());
 
-        ResponseEntity<String> missing = restTemplate.getForEntity(url("/api/responses/" + key), String.class);
-        assertThat(missing.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        mockMvc.perform(get("/api/responses/{key}", key))
+                .andExpect(status().isNotFound());
     }
 
     @Test
-    void exposesDefaultXmlAndHealth() {
-        ResponseEntity<String> defaultXml = restTemplate.exchange(
-                url("/api/responses/default"),
-                HttpMethod.POST,
-                HttpEntity.EMPTY,
-                String.class);
-        assertThat(defaultXml.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(defaultXml.getBody()).contains("Default XML response");
+    void exposesDefaultXmlAndHealth() throws Exception {
+        mockMvc.perform(post("/api/responses/default"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Default XML response")));
 
-        ResponseEntity<String> health = restTemplate.getForEntity(url("/actuator/health"), String.class);
-        assertThat(health.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(health.getBody()).contains("UP");
+        mockMvc.perform(get("/actuator/health"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("UP")));
     }
 
     @Test
-    void supportsLegacyAliases() {
+    void supportsLegacyAliases() throws Exception {
         String key = "legacy-" + UUID.randomUUID();
         String xml = "<legacy><status>ok</status></legacy>";
 
-        ResponseEntity<MessageResponse> added = restTemplate.exchange(
-                url("/add/" + key),
-                HttpMethod.POST,
-                xmlEntity(xml),
-                MessageResponse.class);
-        assertThat(added.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        mockMvc.perform(post("/add/{key}", key)
+                        .contentType(MediaType.APPLICATION_XML)
+                        .content(xml))
+                .andExpect(status().isCreated());
 
-        ResponseEntity<String> fetched = restTemplate.getForEntity(url("/fetch/" + key), String.class);
-        assertThat(fetched.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(fetched.getBody()).contains("<legacy>");
+        mockMvc.perform(get("/fetch/{key}", key))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("<legacy>")));
 
-        ResponseEntity<PayloadCatalogResponse> all = restTemplate.exchange(
-                url("/fetchAll"),
-                HttpMethod.GET,
-                HttpEntity.EMPTY,
-                new ParameterizedTypeReference<>() {
-                });
-        assertThat(all.getBody().keys()).contains(key);
+        mockMvc.perform(get("/fetchAll"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.keys").value(hasItem(key)));
 
-        ResponseEntity<String> help = restTemplate.getForEntity(url("/help"), String.class);
-        assertThat(help.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(help.getBody()).contains("/api/responses");
+        mockMvc.perform(get("/help"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("/api/responses")));
     }
 
     @Test
-    void rejectsInvalidKeysWithJsonError() {
-        ResponseEntity<String> modern = restTemplate.getForEntity(
-                url("/api/responses/bad%20key"),
-                String.class);
-        assertThat(modern.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-        assertThat(modern.getHeaders().getContentType()).isEqualTo(MediaType.APPLICATION_JSON);
-        assertThat(modern.getBody()).contains("Invalid response key");
+    void rejectsInvalidKeysWithJsonError() throws Exception {
+        mockMvc.perform(get("/api/responses/{key}", "bad key"))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.message").value(containsString("Invalid response key")));
 
-        ResponseEntity<String> legacy = restTemplate.getForEntity(
-                url("/fetch/bad%20key"),
-                String.class);
-        assertThat(legacy.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-        assertThat(legacy.getBody()).contains("Invalid response key");
+        mockMvc.perform(get("/fetch/{key}", "bad key"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(containsString("Invalid response key")));
     }
 
-    private HttpEntity<String> xmlEntity(String xml) {
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_XML);
-        return new HttpEntity<>(xml, headers);
+    @Test
+    void rejectsInvalidXmlAcrossModernAndLegacyWrites() throws Exception {
+        mockMvc.perform(post("/api/responses/invalid-modern")
+                        .contentType(MediaType.APPLICATION_XML)
+                        .content("<response>"))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.message").value(containsString("well-formed XML document or fragment")));
+
+        mockMvc.perform(post("/add/invalid-legacy")
+                        .contentType(MediaType.APPLICATION_XML)
+                        .content(" \n\t"))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.message").value("XML response content must not be blank."));
     }
 
-    private String url(String path) {
-        return "http://localhost:" + port + path;
+    @Test
+    void preservesLegacyCompatibleXmlFragments() throws Exception {
+        String key = "fragment-" + UUID.randomUUID();
+        String fragment = "<MatDate>1722497647</MatDate><AmountRedeem>100</AmountRedeem>";
+
+        mockMvc.perform(post("/api/responses/{key}", key)
+                        .contentType(MediaType.APPLICATION_XML)
+                        .content(fragment))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(get("/api/responses/{key}", key))
+                .andExpect(status().isOk())
+                .andExpect(content().string(fragment));
     }
 }

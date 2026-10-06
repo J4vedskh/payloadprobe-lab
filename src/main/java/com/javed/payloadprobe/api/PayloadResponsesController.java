@@ -23,9 +23,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class PayloadResponsesController {
 
     private final PayloadResponseStore store;
+    private final XmlPayloadValidator xmlPayloadValidator;
 
-    public PayloadResponsesController(PayloadResponseStore store) {
+    public PayloadResponsesController(PayloadResponseStore store, XmlPayloadValidator xmlPayloadValidator) {
         this.store = store;
+        this.xmlPayloadValidator = xmlPayloadValidator;
     }
 
     @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
@@ -47,8 +49,8 @@ public class PayloadResponsesController {
             produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<MessageResponse> createResponse(
             @PathVariable @Pattern(regexp = "[A-Za-z0-9._-]{1,120}") String key,
-            @RequestBody String xmlInput) {
-        boolean created = store.create(key, xmlInput);
+            @RequestBody(required = false) String xmlInput) {
+        boolean created = store.create(key, xmlPayloadValidator.validate(xmlInput));
         if (!created) {
             return ResponseEntity.status(HttpStatus.CONFLICT)
                     .body(new MessageResponse("Response already exists for key: " + key));
@@ -63,8 +65,8 @@ public class PayloadResponsesController {
             produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<MessageResponse> updateResponse(
             @PathVariable @Pattern(regexp = "[A-Za-z0-9._-]{1,120}") String key,
-            @RequestBody String xmlInput) {
-        boolean updated = store.update(key, xmlInput);
+            @RequestBody(required = false) String xmlInput) {
+        boolean updated = store.update(key, xmlPayloadValidator.validate(xmlInput));
         if (!updated) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(new MessageResponse("No XML response found for key: " + key));
