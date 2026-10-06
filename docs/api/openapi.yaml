@@ -1,8 +1,10 @@
 openapi: 3.0.3
 info:
   title: PayloadProbe Lab API
-  version: 0.1.0
-  description: API for managing named XML mock responses.
+  version: 0.2.0
+  description: >-
+    API for managing named XML mock responses. Write endpoints accept non-empty,
+    well-formed XML documents or fragments and preserve accepted payload text.
 servers:
   - url: https://j4vedskh.github.io/payloadprobe-lab
     description: Documentation site
@@ -32,58 +34,42 @@ paths:
               schema:
                 type: string
         "404":
-          description: Key not found
+          $ref: "#/components/responses/NotFound"
         "400":
           $ref: "#/components/responses/InvalidKey"
     post:
       summary: Create XML response
       requestBody:
-        required: true
-        content:
-          application/xml:
-            schema:
-              type: string
+        $ref: "#/components/requestBodies/XmlPayload"
       responses:
         "201":
-          description: Created
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/MessageResponse"
+          $ref: "#/components/responses/MessageResult"
         "409":
-          description: Key already exists
+          $ref: "#/components/responses/Conflict"
         "400":
-          $ref: "#/components/responses/InvalidKey"
+          $ref: "#/components/responses/InvalidMutationRequest"
+        "415":
+          $ref: "#/components/responses/UnsupportedMediaType"
     put:
       summary: Update XML response
       requestBody:
-        required: true
-        content:
-          application/xml:
-            schema:
-              type: string
+        $ref: "#/components/requestBodies/XmlPayload"
       responses:
         "200":
-          description: Updated
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/MessageResponse"
+          $ref: "#/components/responses/MessageResult"
         "404":
-          description: Key not found
+          $ref: "#/components/responses/NotFound"
         "400":
-          $ref: "#/components/responses/InvalidKey"
+          $ref: "#/components/responses/InvalidMutationRequest"
+        "415":
+          $ref: "#/components/responses/UnsupportedMediaType"
     delete:
       summary: Delete XML response
       responses:
         "200":
-          description: Deleted
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/MessageResponse"
+          $ref: "#/components/responses/MessageResult"
         "404":
-          description: Key not found
+          $ref: "#/components/responses/NotFound"
         "400":
           $ref: "#/components/responses/InvalidKey"
   /api/responses/default:
@@ -109,14 +95,22 @@ paths:
       summary: Legacy fetch alias
       responses:
         "200":
-          description: XML response or legacy not-found XML
+          description: XML response or legacy not-found failure XML
+          content:
+            application/xml:
+              schema:
+                type: string
         "400":
           $ref: "#/components/responses/InvalidKey"
     post:
       summary: Legacy POST fetch alias
       responses:
         "200":
-          description: XML response or legacy not-found XML
+          description: XML response or legacy not-found failure XML
+          content:
+            application/xml:
+              schema:
+                type: string
         "400":
           $ref: "#/components/responses/InvalidKey"
   /add/{key}:
@@ -125,36 +119,32 @@ paths:
     post:
       summary: Legacy create alias
       requestBody:
-        required: true
-        content:
-          application/xml:
-            schema:
-              type: string
+        $ref: "#/components/requestBodies/XmlPayload"
       responses:
         "201":
-          description: Created
+          $ref: "#/components/responses/MessageResult"
         "409":
-          description: Key already exists
+          $ref: "#/components/responses/Conflict"
         "400":
-          $ref: "#/components/responses/InvalidKey"
+          $ref: "#/components/responses/InvalidMutationRequest"
+        "415":
+          $ref: "#/components/responses/UnsupportedMediaType"
   /update/{key}:
     parameters:
       - $ref: "#/components/parameters/Key"
     post:
       summary: Legacy update alias
       requestBody:
-        required: true
-        content:
-          application/xml:
-            schema:
-              type: string
+        $ref: "#/components/requestBodies/XmlPayload"
       responses:
         "200":
-          description: Updated
+          $ref: "#/components/responses/MessageResult"
         "404":
-          description: Key not found
+          $ref: "#/components/responses/NotFound"
         "400":
-          $ref: "#/components/responses/InvalidKey"
+          $ref: "#/components/responses/InvalidMutationRequest"
+        "415":
+          $ref: "#/components/responses/UnsupportedMediaType"
   /delete/{key}:
     parameters:
       - $ref: "#/components/parameters/Key"
@@ -162,9 +152,9 @@ paths:
       summary: Legacy delete alias
       responses:
         "200":
-          description: Deleted
+          $ref: "#/components/responses/MessageResult"
         "404":
-          description: Key not found
+          $ref: "#/components/responses/NotFound"
         "400":
           $ref: "#/components/responses/InvalidKey"
   /fetchAll:
@@ -173,17 +163,29 @@ paths:
       responses:
         "200":
           description: Response catalog
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PayloadCatalogResponse"
   /default:
     get:
       summary: Legacy default XML alias
       responses:
         "200":
           description: Default XML
+          content:
+            application/xml:
+              schema:
+                type: string
     post:
       summary: Legacy default XML alias
       responses:
         "200":
           description: Default XML
+          content:
+            application/xml:
+              schema:
+                type: string
   /help:
     get:
       summary: Legacy endpoint catalog
@@ -191,7 +193,42 @@ paths:
         "200":
           description: Endpoint catalog
 components:
+  requestBodies:
+    XmlPayload:
+      required: true
+      description: >-
+        A non-empty, well-formed XML document or fragment containing at least one
+        element. The default maximum is 262144 UTF-8 bytes. DTDs and external
+        entities are rejected.
+      content:
+        application/xml:
+          schema:
+            $ref: "#/components/schemas/XmlPayload"
+        text/xml:
+          schema:
+            $ref: "#/components/schemas/XmlPayload"
+        text/plain:
+          schema:
+            $ref: "#/components/schemas/XmlPayload"
   responses:
+    MessageResult:
+      description: Operation result
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/MessageResponse"
+    NotFound:
+      description: Key not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/MessageResponse"
+    Conflict:
+      description: Key already exists
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/MessageResponse"
     InvalidKey:
       description: Invalid response key
       content:
@@ -200,6 +237,33 @@ components:
             $ref: "#/components/schemas/MessageResponse"
           example:
             message: Invalid response key. Use 1-120 letters, numbers, dots, underscores, or hyphens.
+    InvalidMutationRequest:
+      description: Invalid response key or XML payload
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/MessageResponse"
+          examples:
+            invalidKey:
+              value:
+                message: Invalid response key. Use 1-120 letters, numbers, dots, underscores, or hyphens.
+            blankPayload:
+              value:
+                message: XML response content must not be blank.
+            malformedPayload:
+              value:
+                message: XML response content must be a well-formed XML document or fragment; DTDs and external entities are not allowed.
+            oversizedPayload:
+              value:
+                message: XML response content exceeds the configured size limit.
+    UnsupportedMediaType:
+      description: Unsupported request Content-Type
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/MessageResponse"
+          example:
+            message: Unsupported Content-Type. Use application/xml, text/xml, or text/plain.
   parameters:
     Key:
       name: key
@@ -209,6 +273,11 @@ components:
         type: string
         pattern: "^[A-Za-z0-9._-]{1,120}$"
   schemas:
+    XmlPayload:
+      type: string
+      minLength: 1
+      description: XML document or fragment; the byte limit is enforced after UTF-8 encoding.
+      example: <response><status>success</status></response>
     PayloadCatalogResponse:
       type: object
       required:
@@ -232,4 +301,4 @@ components:
       properties:
         message:
           type: string
-          example: Response created for key: paymentSuccess
+          example: "Response created for key: paymentSuccess"

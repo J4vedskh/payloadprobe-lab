@@ -8,6 +8,8 @@ spring:
 payloadprobe:
   store:
     path: ${PAYLOADPROBE_STORE_PATH:data/xmlResponses.json}
+  validation:
+    max-payload-bytes: ${PAYLOADPROBE_MAX_PAYLOAD_BYTES:262144}
 
 management:
   endpoints:

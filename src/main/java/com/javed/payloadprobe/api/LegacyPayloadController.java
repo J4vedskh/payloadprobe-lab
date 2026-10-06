@@ -20,9 +20,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class LegacyPayloadController {
 
     private final PayloadResponseStore store;
+    private final XmlPayloadValidator xmlPayloadValidator;
 
-    public LegacyPayloadController(PayloadResponseStore store) {
+    public LegacyPayloadController(PayloadResponseStore store, XmlPayloadValidator xmlPayloadValidator) {
         this.store = store;
+        this.xmlPayloadValidator = xmlPayloadValidator;
     }
 
     @GetMapping(value = "/fetch/{key}", produces = {MediaType.APPLICATION_XML_VALUE, MediaType.TEXT_XML_VALUE})
@@ -41,8 +43,8 @@ public class LegacyPayloadController {
             produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<MessageResponse> addXml(
             @PathVariable @Pattern(regexp = "[A-Za-z0-9._-]{1,120}") String key,
-            @RequestBody String xmlInput) {
-        if (!store.create(key, xmlInput)) {
+            @RequestBody(required = false) String xmlInput) {
+        if (!store.create(key, xmlPayloadValidator.validate(xmlInput))) {
             return ResponseEntity.status(HttpStatus.CONFLICT)
                     .body(new MessageResponse("Response for the given key is already present, try update or delete commands"));
         }
@@ -56,8 +58,8 @@ public class LegacyPayloadController {
             produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<MessageResponse> updateXml(
             @PathVariable @Pattern(regexp = "[A-Za-z0-9._-]{1,120}") String key,
-            @RequestBody String xmlInput) {
-        if (!store.update(key, xmlInput)) {
+            @RequestBody(required = false) String xmlInput) {
+        if (!store.update(key, xmlPayloadValidator.validate(xmlInput))) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(new MessageResponse("Response for the given key does not exist, try add command"));
         }

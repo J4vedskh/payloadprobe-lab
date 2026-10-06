@@ -17,6 +17,31 @@ older PayloadProbe clients have a migration path.
 
 Keys are limited to 1-120 letters, numbers, dots, underscores, or hyphens. Invalid keys return `400` with a JSON error body.
 
+## XML Request Validation
+
+Create and update requests use `application/xml`, `text/xml`, or `text/plain`.
+The body must:
+
+- contain at least one XML element;
+- be a well-formed XML document or fragment;
+- stay within 262144 UTF-8 bytes by default; and
+- not contain a DTD or external entity.
+
+Fragments with more than one top-level element remain supported for compatibility.
+PayloadProbe stores accepted body text unchanged. Set
+`PAYLOADPROBE_MAX_PAYLOAD_BYTES` to change the application-level storage limit.
+
+Invalid bodies return one stable JSON field and are not written to the store:
+
+```json
+{
+  "message": "XML response content must not be blank."
+}
+```
+
+Unsupported request media types return `415` with the same one-field JSON
+shape. The full set of fixed error examples is in the OpenAPI contract.
+
 ## Legacy Aliases
 
 | Method | Path | Notes |
@@ -31,7 +56,10 @@ Keys are limited to 1-120 letters, numbers, dots, underscores, or hyphens. Inval
 | `POST` | `/default` | Default XML sample |
 | `GET` | `/help` | Endpoint catalog |
 
-Legacy aliases use the same key validation rules as the modern API.
+Legacy aliases use the same key and body validation rules as the modern API.
+For compatibility, a missing legacy `GET|POST /fetch/{key}` still returns
+`200 application/xml` with a failure payload. The modern fetch route returns a
+JSON `404` instead.
 
 ## OpenAPI
 
