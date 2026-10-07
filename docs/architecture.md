@@ -14,6 +14,9 @@ flowchart LR
     Store --> JsonFile["JSON file data/xmlResponses.json"]
     Store --> Seed["Classpath seed xmlResponses.json"]
     Spring["Spring Boot Actuator"] --> Health["/actuator/health"]
+    Store --> Metrics["Bounded catalog metrics"]
+    Spring --> MetricsApi["/actuator/metrics and /actuator/prometheus"]
+    Metrics --> MetricsApi
 ```
 
 ## Request Flow
@@ -52,6 +55,8 @@ flowchart TB
 
 ## Design Direction
 
-The first version focuses on a stable modernization foundation. Daily automation
-can then add persistence options, richer validation, contract tests, dashboards,
-security controls, and deployment polish in small verified steps.
+The first version focuses on a stable modernization foundation. Store-level
+metrics cover response lookups, misses, bounded write outcomes, and current
+catalog size without recording keys or XML payloads. Daily automation can then
+add persistence options, structured logging, dashboards, security controls, and
+deployment polish in small verified steps.

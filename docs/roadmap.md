@@ -4,6 +4,7 @@
 
 - Validate modern and legacy write payloads with stable JSON error responses.
 - Cover every legacy alias with controller-level contract tests.
+- Add bounded Micrometer metrics for catalog size, reads, writes, and misses.
 
 ## Near Term
 
@@ -18,7 +19,6 @@
 
 ## Observability
 
-- Add Micrometer metrics for catalog size, reads, writes, and misses.
 - Add structured request logging.
 - Add a Grafana dashboard starter.
 

@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: PayloadProbe Lab API
-  version: 0.2.0
+  version: 0.3.0
   description: >-
     API for managing named XML mock responses. Write endpoints accept non-empty,
     well-formed XML documents or fragments and preserve accepted payload text.
@@ -88,6 +88,35 @@ paths:
       responses:
         "200":
           description: Health status
+  /actuator/metrics/{metricName}:
+    parameters:
+      - name: metricName
+        in: path
+        required: true
+        schema:
+          type: string
+        example: payloadprobe.response.catalog.size
+    get:
+      summary: Inspect one Actuator metric
+      responses:
+        "200":
+          description: Metric measurements and available tags
+          content:
+            application/vnd.spring-boot.actuator.v3+json:
+              schema:
+                $ref: "#/components/schemas/ActuatorMetricResponse"
+        "404":
+          description: Metric name not found
+  /actuator/prometheus:
+    get:
+      summary: Scrape operational metrics
+      responses:
+        "200":
+          description: Prometheus text exposition
+          content:
+            text/plain:
+              schema:
+                type: string
   /fetch/{key}:
     parameters:
       - $ref: "#/components/parameters/Key"
@@ -278,6 +307,58 @@ components:
       minLength: 1
       description: XML document or fragment; the byte limit is enforced after UTF-8 encoding.
       example: <response><status>success</status></response>
+    ActuatorMetricResponse:
+      type: object
+      required:
+        - name
+        - measurements
+        - availableTags
+      properties:
+        name:
+          type: string
+          example: payloadprobe.response.catalog.size
+        description:
+          type: string
+          nullable: true
+          example: Current number of stored XML response keys.
+        measurements:
+          type: array
+          items:
+            $ref: "#/components/schemas/ActuatorMeasurement"
+        availableTags:
+          type: array
+          items:
+            $ref: "#/components/schemas/ActuatorAvailableTag"
+    ActuatorMeasurement:
+      type: object
+      required:
+        - statistic
+        - value
+      properties:
+        statistic:
+          type: string
+          example: VALUE
+        value:
+          type: number
+          format: double
+          example: 3.0
+    ActuatorAvailableTag:
+      type: object
+      required:
+        - tag
+        - values
+      properties:
+        tag:
+          type: string
+          example: operation
+        values:
+          type: array
+          items:
+            type: string
+          example:
+            - create
+            - update
+            - delete
     PayloadCatalogResponse:
       type: object
       required:
