@@ -14,6 +14,8 @@ older PayloadProbe clients have a migration path.
 | `DELETE` | `/api/responses/{key}` | Delete XML response, `404` if missing |
 | `POST` | `/api/responses/default` | Default XML sample |
 | `GET` | `/actuator/health` | Spring Boot health status |
+| `GET` | `/actuator/metrics/{metricName}` | One Actuator metric and its available tags |
+| `GET` | `/actuator/prometheus` | Prometheus-format operational metrics |
 
 Keys are limited to 1-120 letters, numbers, dots, underscores, or hyphens. Invalid keys return `400` with a JSON error body.
 

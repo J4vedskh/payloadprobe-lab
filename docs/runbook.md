@@ -15,6 +15,29 @@ curl http://localhost:8080/api/responses
 curl http://localhost:8080/api/responses/openTest
 ```
 
+## Catalog Metrics
+
+Inspect one metric through Actuator or scrape all metrics in Prometheus format:
+
+```bash
+curl http://localhost:8080/actuator/metrics/payloadprobe.response.catalog.size
+curl http://localhost:8080/actuator/prometheus
+```
+
+| Metric | Type | Meaning |
+| --- | --- | --- |
+| `payloadprobe.response.catalog.size` | Gauge | Current number of stored response keys |
+| `payloadprobe.response.reads` | Counter | Completed response lookups, including hits and misses |
+| `payloadprobe.response.misses` | Counter | Response lookups that found no stored payload |
+| `payloadprobe.response.writes` | Counter | Completed create, update, and delete attempts |
+
+Write counters use only fixed `operation=create|update|delete` and
+`outcome=success|rejected` tags. No response key, XML content, file path, or
+request value is recorded. Prometheus exports counters with a `_total` suffix.
+
+Keep `/actuator/prometheus` behind the deployment's existing network access
+boundary; it is an operational endpoint, not a public response API.
+
 ## Common Issues
 
 | Symptom | Likely cause | Action |

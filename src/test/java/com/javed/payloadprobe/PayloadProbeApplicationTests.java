@@ -13,6 +13,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.actuate.observability.AutoConfigureObservability;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
@@ -23,6 +24,7 @@ import org.springframework.test.web.servlet.MockMvc;
             "payloadprobe.store.path=target/test-data/xmlResponses-${random.uuid}.json",
             "management.health.diskspace.enabled=false"
         })
+@AutoConfigureObservability
 @AutoConfigureMockMvc
 class PayloadProbeApplicationTests {
 
@@ -83,6 +85,40 @@ class PayloadProbeApplicationTests {
         mockMvc.perform(get("/actuator/health"))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("UP")));
+    }
+
+    @Test
+    void exposesCatalogMetricsToActuatorAndPrometheus() throws Exception {
+        String key = "metrics-" + UUID.randomUUID();
+
+        mockMvc.perform(get("/api/responses/openTest"))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/responses/missing-metrics-key"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/api/responses/{key}", key)
+                        .contentType(MediaType.APPLICATION_XML)
+                        .content("<metrics/>"))
+                .andExpect(status().isCreated());
+        mockMvc.perform(post("/api/responses/{key}", key)
+                        .contentType(MediaType.APPLICATION_XML)
+                        .content("<metrics/>"))
+                .andExpect(status().isConflict());
+
+        mockMvc.perform(get("/actuator/metrics/{metricName}", "payloadprobe.response.catalog.size"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("payloadprobe.response.catalog.size"))
+                .andExpect(jsonPath("$.measurements[0].value").isNumber());
+
+        mockMvc.perform(get("/actuator/prometheus"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.TEXT_PLAIN))
+                .andExpect(content().string(containsString("payloadprobe_response_catalog_size")))
+                .andExpect(content().string(containsString("payloadprobe_response_reads_total")))
+                .andExpect(content().string(containsString("payloadprobe_response_misses_total")))
+                .andExpect(content().string(containsString("payloadprobe_response_writes_total")))
+                .andExpect(content().string(containsString("operation=\"create\"")))
+                .andExpect(content().string(containsString("outcome=\"success\"")))
+                .andExpect(content().string(containsString("outcome=\"rejected\"")));
     }
 
     @Test
