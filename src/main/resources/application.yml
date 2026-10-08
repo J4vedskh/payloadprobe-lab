@@ -5,6 +5,11 @@ spring:
   application:
     name: payloadprobe-lab
 
+logging:
+  structured:
+    format:
+      console: logstash
+
 payloadprobe:
   store:
     path: ${PAYLOADPROBE_STORE_PATH:data/xmlResponses.json}

@@ -38,6 +38,26 @@ request value is recorded. Prometheus exports counters with a `_total` suffix.
 Keep `/actuator/prometheus` behind the deployment's existing network access
 boundary; it is an operational endpoint, not a public response API.
 
+## Request Completion Logs
+
+Console logs use Spring Boot's Logstash JSON format. Each completed synchronous
+request emits one `request.completed` event with only bounded,
+server-controlled fields; async and error redispatches are skipped:
+
+| Field | Meaning |
+| --- | --- |
+| `event` | Fixed `http_request_completed` event name |
+| `method` | `GET`, `POST`, `PUT`, `DELETE`, `PATCH`, `HEAD`, `OPTIONS`, or `OTHER` |
+| `route` | Allow-listed route template such as `/api/responses/{key}`, or `other` |
+| `status` | Final HTTP status, or fixed `500` for an unhandled failure |
+| `outcome` | `success`, `client_error`, `server_error`, or `other` |
+| `duration_ms` | Server-measured elapsed milliseconds |
+
+The event never reads or records an actual URI or response key, query parameter,
+header, cookie, request or response body, XML content, client address, request
+identifier, file path, or exception object, type, message, cause, or stack trace.
+Unmatched, static, and management routes collapse to the fixed `other` label.
+
 ## Common Issues
 
 | Symptom | Likely cause | Action |

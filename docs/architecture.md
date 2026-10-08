@@ -11,6 +11,8 @@ flowchart LR
     Client --> LegacyApi["Legacy aliases /fetch, /add, /update"]
     ModernApi --> Store["Payload response store"]
     LegacyApi --> Store
+    ModernApi --> RequestLog["Safe request completion log"]
+    LegacyApi --> RequestLog
     Store --> JsonFile["JSON file data/xmlResponses.json"]
     Store --> Seed["Classpath seed xmlResponses.json"]
     Spring["Spring Boot Actuator"] --> Health["/actuator/health"]
@@ -27,6 +29,7 @@ sequenceDiagram
     participant API as PayloadProbe API
     participant Store as JSON Store
     participant File as xmlResponses.json
+    participant Log as Structured log
 
     Client->>API: POST /api/responses/{key}
     API->>Store: create key and XML
@@ -36,6 +39,7 @@ sequenceDiagram
     API->>Store: find key
     Store-->>API: XML payload
     API-->>Client: application/xml
+    API-->>Log: fixed completion metadata only
 ```
 
 ## Deployment Topology
@@ -57,6 +61,7 @@ flowchart TB
 
 The first version focuses on a stable modernization foundation. Store-level
 metrics cover response lookups, misses, bounded write outcomes, and current
-catalog size without recording keys or XML payloads. Daily automation can then
-add persistence options, structured logging, dashboards, security controls, and
-deployment polish in small verified steps.
+catalog size. One structured completion event records only allow-listed route
+templates and fixed server metadata, never keys, request values, XML payloads,
+or exception details. Daily automation can then add persistence options,
+dashboards, security controls, and deployment polish in small verified steps.

@@ -1,5 +1,6 @@
 package com.javed.payloadprobe;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -10,12 +11,23 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.javed.payloadprobe.observability.RequestCompletionLoggingFilter;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.actuate.observability.AutoConfigureObservability;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -119,6 +131,61 @@ class PayloadProbeApplicationTests {
                 .andExpect(content().string(containsString("operation=\"create\"")))
                 .andExpect(content().string(containsString("outcome=\"success\"")))
                 .andExpect(content().string(containsString("outcome=\"rejected\"")));
+    }
+
+    @Test
+    @ExtendWith(OutputCaptureExtension.class)
+    void emitsOneSafeStructuredCompletionEventForMappedRequests(CapturedOutput output) throws Exception {
+        String key = "logging-private-key-" + UUID.randomUUID();
+        String bodySecret = "logging-body-secret";
+        String querySecret = "logging-query-secret";
+        String headerSecret = "logging-header-secret";
+        Logger requestLogger = (Logger) LoggerFactory.getLogger(RequestCompletionLoggingFilter.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        requestLogger.addAppender(appender);
+
+        try {
+            mockMvc.perform(post("/api/responses/{key}", key)
+                            .queryParam("token", querySecret)
+                            .header("Authorization", "Bearer " + headerSecret)
+                            .contentType(MediaType.APPLICATION_XML)
+                            .content("<response><token>" + bodySecret + "</token></response>"))
+                    .andExpect(status().isCreated());
+        } finally {
+            requestLogger.detachAppender(appender);
+            appender.stop();
+        }
+
+        assertThat(appender.list).singleElement().satisfies(event -> {
+            assertThat(event.getLevel()).isEqualTo(Level.INFO);
+            assertThat(event.getFormattedMessage()).isEqualTo("request.completed");
+            assertThat(event.getKeyValuePairs())
+                    .extracting(pair -> pair.key, pair -> pair.value)
+                    .contains(
+                            org.assertj.core.groups.Tuple.tuple("event", "http_request_completed"),
+                            org.assertj.core.groups.Tuple.tuple("method", "POST"),
+                            org.assertj.core.groups.Tuple.tuple("route", "/api/responses/{key}"),
+                            org.assertj.core.groups.Tuple.tuple("status", 201),
+                            org.assertj.core.groups.Tuple.tuple("outcome", "success"));
+            assertThat(event.getThrowableProxy()).isNull();
+            assertThat(event.getFormattedMessage() + event.getKeyValuePairs())
+                    .doesNotContain(key, bodySecret, querySecret, headerSecret);
+        });
+
+        String renderedJson = output.getOut().lines()
+                .filter(line -> line.contains("\"message\":\"request.completed\""))
+                .filter(line -> line.contains(RequestCompletionLoggingFilter.class.getName()))
+                .reduce((first, second) -> second)
+                .orElseThrow();
+        JsonNode structuredEvent = new ObjectMapper().readTree(renderedJson);
+        assertThat(structuredEvent.get("event").asText()).isEqualTo("http_request_completed");
+        assertThat(structuredEvent.get("method").asText()).isEqualTo("POST");
+        assertThat(structuredEvent.get("route").asText()).isEqualTo("/api/responses/{key}");
+        assertThat(structuredEvent.get("status").asInt()).isEqualTo(201);
+        assertThat(structuredEvent.get("outcome").asText()).isEqualTo("success");
+        assertThat(structuredEvent.get("duration_ms").isIntegralNumber()).isTrue();
+        assertThat(structuredEvent.toString()).doesNotContain(key, bodySecret, querySecret, headerSecret);
     }
 
     @Test
