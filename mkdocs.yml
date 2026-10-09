@@ -31,6 +31,7 @@ nav:
   - Architecture: architecture.md
   - API Reference: api-reference.md
   - Setup Guide: setup-guide.md
+  - Grafana Dashboard: grafana-dashboard.md
   - Runbook: runbook.md
   - Roadmap: roadmap.md
   - Daily Progress: daily-progress.md

@@ -128,6 +128,10 @@ class PayloadProbeApplicationTests {
                 .andExpect(content().string(containsString("payloadprobe_response_reads_total")))
                 .andExpect(content().string(containsString("payloadprobe_response_misses_total")))
                 .andExpect(content().string(containsString("payloadprobe_response_writes_total")))
+                .andExpect(content().string(containsString("http_server_requests_seconds_count")))
+                .andExpect(content().string(containsString("http_server_requests_seconds_sum")))
+                .andExpect(content().string(containsString("outcome=\"SUCCESS\"")))
+                .andExpect(content().string(containsString("uri=\"/api/responses/{key}\"")))
                 .andExpect(content().string(containsString("operation=\"create\"")))
                 .andExpect(content().string(containsString("outcome=\"success\"")))
                 .andExpect(content().string(containsString("outcome=\"rejected\"")));

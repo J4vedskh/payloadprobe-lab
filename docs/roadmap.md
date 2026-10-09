@@ -6,6 +6,7 @@
 - Cover every legacy alias with controller-level contract tests.
 - Add bounded Micrometer metrics for catalog size, reads, writes, and misses.
 - Add privacy-safe structured request completion logging.
+- Add an importable Grafana dashboard starter for bounded operational metrics.
 
 ## Near Term
 
@@ -20,7 +21,7 @@
 
 ## Observability
 
-- Add a Grafana dashboard starter.
+- Define environment-qualified alert rules after a real traffic baseline exists.
 
 ## Product Depth
 

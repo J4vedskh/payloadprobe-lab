@@ -38,6 +38,9 @@ request value is recorded. Prometheus exports counters with a `_total` suffix.
 Keep `/actuator/prometheus` behind the deployment's existing network access
 boundary; it is an operational endpoint, not a public response API.
 
+Import and interpretation guidance for the checked-in dashboard is in the
+[Grafana Dashboard](grafana-dashboard.md) page.
+
 ## Request Completion Logs
 
 Console logs use Spring Boot's Logstash JSON format. Each completed synchronous
