@@ -55,6 +55,7 @@ flowchart TB
     Service --> Pod
     Pod --> Volume
     Prometheus["Prometheus"] --> Pod
+    Grafana["Importable Grafana dashboard"] --> Prometheus
 ```
 
 ## Design Direction
@@ -63,5 +64,8 @@ The first version focuses on a stable modernization foundation. Store-level
 metrics cover response lookups, misses, bounded write outcomes, and current
 catalog size. One structured completion event records only allow-listed route
 templates and fixed server metadata, never keys, request values, XML payloads,
-or exception details. Daily automation can then add persistence options,
-dashboards, security controls, and deployment polish in small verified steps.
+or exception details. An importable Grafana dashboard provides a scan-first view
+of scrape health, catalog activity, write outcomes, HTTP outcomes, and mean
+latency without adding deployment dependencies. Daily automation can then add
+persistence options, security controls, and deployment polish in small verified
+steps.
