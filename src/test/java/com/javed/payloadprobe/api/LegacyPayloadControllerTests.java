@@ -179,6 +179,8 @@ class LegacyPayloadControllerTests {
                         tuple("GET", "/fetchAll"),
                         tuple("GET", "/default"),
                         tuple("POST", "/default"),
+                        tuple("GET", "/api/response-sets"),
+                        tuple("POST", "/api/response-sets"),
                         tuple("GET", "/help"));
     }
 

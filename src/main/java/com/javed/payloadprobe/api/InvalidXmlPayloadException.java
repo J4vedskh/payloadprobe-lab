@@ -1,6 +1,6 @@
 package com.javed.payloadprobe.api;
 
-final class InvalidXmlPayloadException extends RuntimeException {
+public final class InvalidXmlPayloadException extends RuntimeException {
 
     private final Reason reason;
 

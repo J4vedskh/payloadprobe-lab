@@ -29,9 +29,9 @@ curl http://localhost:8080/actuator/prometheus
 | `payloadprobe.response.catalog.size` | Gauge | Current number of stored response keys |
 | `payloadprobe.response.reads` | Counter | Completed response lookups, including hits and misses |
 | `payloadprobe.response.misses` | Counter | Response lookups that found no stored payload |
-| `payloadprobe.response.writes` | Counter | Completed create, update, and delete attempts |
+| `payloadprobe.response.writes` | Counter | Completed create, update, delete, and response-set import attempts |
 
-Write counters use only fixed `operation=create|update|delete` and
+Write counters use only fixed `operation=create|update|delete|import` and
 `outcome=success|rejected` tags. No response key, XML content, file path, or
 request value is recorded. Prometheus exports counters with a `_total` suffix.
 
@@ -40,6 +40,35 @@ boundary; it is an operational endpoint, not a public response API.
 
 Import and interpretation guidance for the checked-in dashboard is in the
 [Grafana Dashboard](grafana-dashboard.md) page.
+
+## Response-set export and import
+
+Export the current response catalog before moving it to another trusted
+environment:
+
+```bash
+curl http://localhost:8080/api/response-sets
+```
+
+Import a response set with JSON. Check the `201` result and `imported` count:
+
+```bash
+curl -X POST http://localhost:8080/api/response-sets \
+  -H "Content-Type: application/json" \
+  -d '{"version":1,"responses":[{"key":"newResponse","xml":"<response/>"}]}'
+```
+
+The import is additive and atomic. A `409` means one or more submitted keys
+already exist; no entries were imported. A `400` means the complete JSON
+document, including every XML entry, must be corrected before retrying. The
+default ceilings are 100 entries, 1,048,576 raw JSON bytes, and 262,144 UTF-8
+bytes per XML value. The import endpoint is mutable and unauthenticated: do
+not expose it outside trusted external access controls.
+
+PayloadProbe checks atomic-move support in the configured store directory at
+startup. If startup reports that atomic moves are unavailable, move
+`PAYLOADPROBE_STORE_PATH` to a local filesystem that supports atomic rename;
+imports are not enabled with a weaker non-atomic fallback.
 
 ## Request Completion Logs
 
@@ -68,6 +97,7 @@ Unmatched, static, and management routes collapse to the fixed `other` label.
 | `404` for a key | The response was not created or was deleted | Check `/api/responses` and recreate it |
 | Store changes disappear | Container has no persistent volume | Mount `./data:/data` or set `PAYLOADPROBE_STORE_PATH` |
 | App fails on startup | Store path parent cannot be created | Use a writable path for `PAYLOADPROBE_STORE_PATH` |
+| App reports atomic moves are unavailable | Store filesystem cannot guarantee all-or-nothing imports | Move `PAYLOADPROBE_STORE_PATH` to a filesystem with atomic rename support |
 | Docs build fails | Missing Python dependencies | Run `pip install -r docs/requirements.txt` |
 
 ## Release Checks

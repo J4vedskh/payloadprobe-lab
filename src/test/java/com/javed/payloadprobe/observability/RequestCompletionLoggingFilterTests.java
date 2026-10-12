@@ -116,6 +116,26 @@ class RequestCompletionLoggingFilterTests {
     }
 
     @Test
+    void logsTheResponseSetRouteWithoutReadingItsBody() throws Exception {
+        MockHttpServletRequest request = sensitiveRequest("POST", "/api/response-sets");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, (servletRequest, servletResponse) -> {
+            servletRequest.setAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE, "/api/response-sets");
+            ((HttpServletResponse) servletResponse).setStatus(201);
+        });
+
+        ILoggingEvent event = onlyEvent();
+        assertThat(fields(event))
+                .containsEntry("method", "POST")
+                .containsEntry("route", "/api/response-sets")
+                .containsEntry("status", 201)
+                .containsEntry("outcome", "success")
+                .hasSize(6);
+        assertSafe(event);
+    }
+
+    @Test
     void collapsesUnknownRoutesAndMethodsToOther() throws Exception {
         MockHttpServletRequest request = sensitiveRequest("TRACE", "/unknown/" + PATH_SECRET);
         MockHttpServletResponse response = new MockHttpServletResponse();

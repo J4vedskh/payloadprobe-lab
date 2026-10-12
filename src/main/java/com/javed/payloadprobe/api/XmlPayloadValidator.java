@@ -35,7 +35,7 @@ public class XmlPayloadValidator {
         this.maxPayloadBytes = maxPayloadBytes;
     }
 
-    String validate(String xmlInput) {
+    public String validate(String xmlInput) {
         if (xmlInput == null || xmlInput.isBlank()) {
             throw new InvalidXmlPayloadException(InvalidXmlPayloadException.Reason.BLANK);
         }

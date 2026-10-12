@@ -15,6 +15,9 @@ payloadprobe:
     path: ${PAYLOADPROBE_STORE_PATH:data/xmlResponses.json}
   validation:
     max-payload-bytes: ${PAYLOADPROBE_MAX_PAYLOAD_BYTES:262144}
+  response-sets:
+    max-entries: ${PAYLOADPROBE_RESPONSE_SET_MAX_ENTRIES:100}
+    max-document-bytes: ${PAYLOADPROBE_RESPONSE_SET_MAX_DOCUMENT_BYTES:1048576}
 
 management:
   endpoints:
