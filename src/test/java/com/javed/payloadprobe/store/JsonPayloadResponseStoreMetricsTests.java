@@ -1,6 +1,7 @@
 package com.javed.payloadprobe.store;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.javed.payloadprobe.config.PayloadProbeProperties;
@@ -8,6 +9,7 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -82,6 +84,68 @@ class JsonPayloadResponseStoreMetricsTests {
         assertWriteCount("update", "rejected", 1.0);
         assertWriteCount("delete", "success", 1.0);
         assertWriteCount("delete", "rejected", 1.0);
+    }
+
+    @Test
+    void mergesAResponseSetAtomicallyAndReturnsDetachedSnapshots() throws IOException {
+        Map<String, String> detached = store.snapshot();
+        detached.put("outside", "<outside/>");
+        assertThat(store.findByKey("outside")).isEmpty();
+
+        String fileBeforeConflict = Files.readString(storePath);
+        assertThat(store.createAllIfAbsent(new LinkedHashMap<>(Map.of(
+                        "alpha", "<replacement/>",
+                        "gamma", "<gamma/>"))))
+                .isFalse();
+        assertThat(store.snapshot()).containsExactlyEntriesOf(Map.of(
+                "alpha", "<alpha/>",
+                "beta", "<beta/>"));
+        assertThat(Files.readString(storePath)).isEqualTo(fileBeforeConflict);
+
+        assertThat(store.createAllIfAbsent(new LinkedHashMap<>(Map.of(
+                        "gamma", "<gamma/>",
+                        "delta", "<delta/>"))))
+                .isTrue();
+        assertThat(store.snapshot())
+                .containsEntry("alpha", "<alpha/>")
+                .containsEntry("beta", "<beta/>")
+                .containsEntry("gamma", "<gamma/>")
+                .containsEntry("delta", "<delta/>");
+        assertThat(new ObjectMapper().readValue(storePath.toFile(), Map.class))
+                .containsEntry("gamma", "<gamma/>")
+                .containsEntry("delta", "<delta/>");
+        assertThat(gaugeValue()).isEqualTo(4.0);
+    }
+
+    @Test
+    void failsStartupWhenTheStoreCannotGuaranteeAtomicMoves() {
+        Path unsupportedPath = Path.of(
+                "target",
+                "test-data",
+                "atomic-move-unsupported-" + UUID.randomUUID() + ".json");
+        PayloadProbeProperties unsupportedProperties = new PayloadProbeProperties();
+        unsupportedProperties.setPath(unsupportedPath);
+
+        SimpleMeterRegistry unsupportedRegistry = new SimpleMeterRegistry();
+        try {
+            JsonPayloadResponseStore unsupportedStore = new JsonPayloadResponseStore(
+                    new ObjectMapper(),
+                    unsupportedProperties,
+                    unsupportedRegistry,
+                    (source, target) -> {
+                        throw new AtomicMoveNotSupportedException(
+                                source.toString(),
+                                target.toString(),
+                                "unsupported by test filesystem");
+                    });
+
+            assertThatThrownBy(unsupportedStore::initialize)
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessage("PayloadProbe response imports require atomic file moves in the store directory.");
+            assertThat(Files.exists(unsupportedPath)).isFalse();
+        } finally {
+            unsupportedRegistry.close();
+        }
     }
 
     private double gaugeValue() {

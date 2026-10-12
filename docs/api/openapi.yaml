@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: PayloadProbe Lab API
-  version: 0.3.0
+  version: 0.4.0
   description: >-
     API for managing named XML mock responses. Write endpoints accept non-empty,
     well-formed XML documents or fragments and preserve accepted payload text.
@@ -11,6 +11,51 @@ servers:
   - url: http://localhost:8080
     description: Local development
 paths:
+  /api/response-sets:
+    get:
+      summary: Export the current response catalog
+      description: >-
+        Returns the version 1 response-set document. The export is rejected if
+        its configured entry or raw JSON size limit would be exceeded.
+      responses:
+        "200":
+          description: Versioned response-set document
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResponseSetDocument"
+        "409":
+          $ref: "#/components/responses/ResponseSetExportTooLarge"
+    post:
+      summary: Add a response set without overwriting existing keys
+      description: >-
+        Validates every entry before changing storage. The import is additive:
+        any existing key rejects the whole request. A successful merge uses an
+        atomic replacement file in the same directory. Defaults are 100 entries,
+        1,048,576 raw JSON bytes, and 262,144 UTF-8 bytes per XML value.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResponseSetDocument"
+      responses:
+        "201":
+          description: Number of newly imported responses
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResponseSetImportResponse"
+        "400":
+          $ref: "#/components/responses/InvalidResponseSetDocument"
+        "409":
+          $ref: "#/components/responses/ResponseSetConflict"
+        "413":
+          $ref: "#/components/responses/ResponseSetTooLarge"
+        "415":
+          $ref: "#/components/responses/UnsupportedJsonMediaType"
+        "503":
+          $ref: "#/components/responses/ResponseSetPersistenceFailure"
   /api/responses:
     get:
       summary: List response keys
@@ -240,6 +285,54 @@ components:
           schema:
             $ref: "#/components/schemas/XmlPayload"
   responses:
+    ResponseSetExportTooLarge:
+      description: Current catalog exceeds an export limit
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/MessageResponse"
+          example:
+            message: Current response catalog exceeds the configured response-set export limit.
+    InvalidResponseSetDocument:
+      description: Invalid version, structure, key, duplicate, or XML entry
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/MessageResponse"
+          example:
+            message: Invalid response-set document.
+    ResponseSetConflict:
+      description: At least one submitted key already exists; nothing was imported
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/MessageResponse"
+          example:
+            message: Response-set import conflicts with existing response keys.
+    ResponseSetTooLarge:
+      description: Raw JSON document exceeds the configured byte limit
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/MessageResponse"
+          example:
+            message: Response-set document exceeds the configured size limit.
+    UnsupportedJsonMediaType:
+      description: Response-set imports require application/json
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/MessageResponse"
+          example:
+            message: Unsupported Content-Type. Use application/json.
+    ResponseSetPersistenceFailure:
+      description: Atomic persistence could not complete; the catalog was not changed
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/MessageResponse"
+          example:
+            message: Response-set import could not be persisted.
     MessageResult:
       description: Operation result
       content:
@@ -302,6 +395,47 @@ components:
         type: string
         pattern: "^[A-Za-z0-9._-]{1,120}$"
   schemas:
+    ResponseSetDocument:
+      type: object
+      additionalProperties: false
+      required:
+        - version
+        - responses
+      properties:
+        version:
+          type: integer
+          enum:
+            - 1
+        responses:
+          type: array
+          description: >-
+            Import requests must contain at least one entry; exports may be
+            empty. The configurable entry limit defaults to 100.
+          items:
+            $ref: "#/components/schemas/ResponseSetEntry"
+    ResponseSetEntry:
+      type: object
+      additionalProperties: false
+      required:
+        - key
+        - xml
+      properties:
+        key:
+          type: string
+          pattern: "^[A-Za-z0-9._-]{1,120}$"
+        xml:
+          $ref: "#/components/schemas/XmlPayload"
+    ResponseSetImportResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - imported
+      properties:
+        imported:
+          type: integer
+          minimum: 1
+          description: Number imported, bounded by the configured entry limit (100 by default).
+          example: 2
     XmlPayload:
       type: string
       minLength: 1

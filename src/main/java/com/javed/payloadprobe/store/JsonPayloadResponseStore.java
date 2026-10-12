@@ -13,6 +13,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.LinkedHashMap;
@@ -20,6 +21,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Repository;
 
@@ -45,16 +47,27 @@ public class JsonPayloadResponseStore implements PayloadResponseStore {
     private final Counter misses;
     private final Map<WriteOperation, Counter> successfulWrites;
     private final Map<WriteOperation, Counter> rejectedWrites;
+    private final AtomicFileMover atomicFileMover;
     private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
     private Path storePath;
     private LinkedHashMap<String, String> cache = new LinkedHashMap<>();
 
+    @Autowired
     public JsonPayloadResponseStore(
             ObjectMapper objectMapper,
             PayloadProbeProperties properties,
             MeterRegistry meterRegistry) {
+        this(objectMapper, properties, meterRegistry, JsonPayloadResponseStore::moveAtomically);
+    }
+
+    JsonPayloadResponseStore(
+            ObjectMapper objectMapper,
+            PayloadProbeProperties properties,
+            MeterRegistry meterRegistry,
+            AtomicFileMover atomicFileMover) {
         this.objectMapper = objectMapper.copy().enable(SerializationFeature.INDENT_OUTPUT);
         this.properties = properties;
+        this.atomicFileMover = atomicFileMover;
         this.reads = Counter.builder(READS_METRIC)
                 .description("Completed response lookup attempts.")
                 .register(meterRegistry);
@@ -75,6 +88,7 @@ public class JsonPayloadResponseStore implements PayloadResponseStore {
         if (parent != null) {
             Files.createDirectories(parent);
         }
+        verifyAtomicMoveSupport();
         if (Files.notExists(storePath)) {
             seedStore();
         }
@@ -107,6 +121,16 @@ public class JsonPayloadResponseStore implements PayloadResponseStore {
             misses.increment();
         }
         return response;
+    }
+
+    @Override
+    public Map<String, String> snapshot() {
+        lock.readLock().lock();
+        try {
+            return new LinkedHashMap<>(cache);
+        } finally {
+            lock.readLock().unlock();
+        }
     }
 
     @Override
@@ -166,13 +190,30 @@ public class JsonPayloadResponseStore implements PayloadResponseStore {
         return deleted;
     }
 
+    @Override
+    public boolean createAllIfAbsent(Map<String, String> responses) {
+        lock.writeLock().lock();
+        try {
+            if (responses.keySet().stream().anyMatch(cache::containsKey)) {
+                return false;
+            }
+            LinkedHashMap<String, String> candidate = new LinkedHashMap<>(cache);
+            candidate.putAll(responses);
+            writeStoreAtomically(candidate);
+            cache = candidate;
+            return true;
+        } finally {
+            lock.writeLock().unlock();
+        }
+    }
+
     private static Map<WriteOperation, Counter> registerWriteCounters(
             MeterRegistry meterRegistry,
             String outcome) {
         EnumMap<WriteOperation, Counter> counters = new EnumMap<>(WriteOperation.class);
         for (WriteOperation operation : WriteOperation.values()) {
             counters.put(operation, Counter.builder(WRITES_METRIC)
-                    .description("Completed create, update, or delete attempts.")
+                    .description("Completed response mutation attempts.")
                     .tag(OPERATION_TAG, operation.tagValue)
                     .tag(OUTCOME_TAG, outcome)
                     .register(meterRegistry));
@@ -218,6 +259,69 @@ public class JsonPayloadResponseStore implements PayloadResponseStore {
         } catch (IOException e) {
             throw new IllegalStateException("Failed to persist XML response store at " + storePath, e);
         }
+    }
+
+    private void writeStoreAtomically(Map<String, String> responses) {
+        Path temporaryPath = null;
+        try {
+            temporaryPath = Files.createTempFile(
+                    storePath.getParent(),
+                    storePath.getFileName().toString() + ".",
+                    ".tmp");
+            objectMapper.writeValue(temporaryPath.toFile(), responses);
+            atomicFileMover.move(temporaryPath, storePath);
+        } catch (IOException exception) {
+            throw new IllegalStateException("Failed to persist XML response store.", exception);
+        } finally {
+            if (temporaryPath != null) {
+                try {
+                    Files.deleteIfExists(temporaryPath);
+                } catch (IOException ignored) {
+                    // The catalog was either moved successfully or remains unchanged.
+                }
+            }
+        }
+    }
+
+    private void verifyAtomicMoveSupport() {
+        Path probeSource = null;
+        Path probeTarget = null;
+        try {
+            probeSource = Files.createTempFile(storePath.getParent(), ".payloadprobe-atomic-move-", ".tmp");
+            probeTarget = Files.createTempFile(storePath.getParent(), ".payloadprobe-atomic-target-", ".tmp");
+            atomicFileMover.move(probeSource, probeTarget);
+        } catch (IOException exception) {
+            throw new IllegalStateException(
+                    "PayloadProbe response imports require atomic file moves in the store directory.",
+                    exception);
+        } finally {
+            deleteProbeFile(probeSource);
+            deleteProbeFile(probeTarget);
+        }
+    }
+
+    private static void moveAtomically(Path source, Path target) throws IOException {
+        Files.move(
+                source,
+                target,
+                StandardCopyOption.ATOMIC_MOVE,
+                StandardCopyOption.REPLACE_EXISTING);
+    }
+
+    private static void deleteProbeFile(Path path) {
+        if (path == null) {
+            return;
+        }
+        try {
+            Files.deleteIfExists(path);
+        } catch (IOException ignored) {
+            // A failed startup already reports the unsupported storage boundary.
+        }
+    }
+
+    @FunctionalInterface
+    interface AtomicFileMover {
+        void move(Path source, Path target) throws IOException;
     }
 
     private enum WriteOperation {

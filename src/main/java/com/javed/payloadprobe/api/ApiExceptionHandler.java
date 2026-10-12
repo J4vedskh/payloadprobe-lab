@@ -1,6 +1,7 @@
 package com.javed.payloadprobe.api;
 
 import jakarta.validation.ConstraintViolationException;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -39,8 +40,13 @@ class ApiExceptionHandler {
     }
 
     @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
-    ResponseEntity<MessageResponse> handleUnsupportedMediaType(HttpMediaTypeNotSupportedException ignored) {
-        return messageResponse(HttpStatus.UNSUPPORTED_MEDIA_TYPE, UNSUPPORTED_MEDIA_TYPE_MESSAGE);
+    ResponseEntity<MessageResponse> handleUnsupportedMediaType(
+            HttpMediaTypeNotSupportedException ignored,
+            HttpServletRequest request) {
+        String message = request.getRequestURI().endsWith("/api/response-sets")
+                ? PayloadResponseSetExceptionHandler.UNSUPPORTED_MEDIA_TYPE_MESSAGE
+                : UNSUPPORTED_MEDIA_TYPE_MESSAGE;
+        return messageResponse(HttpStatus.UNSUPPORTED_MEDIA_TYPE, message);
     }
 
     private static ResponseEntity<MessageResponse> messageResponse(HttpStatus status, String message) {

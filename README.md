@@ -45,6 +45,28 @@ curl -X POST http://localhost:8080/api/responses/demo \
   -d "<response><status>success</status></response>"
 ```
 
+Export the current catalog as a portable response set:
+
+```bash
+curl http://localhost:8080/api/response-sets
+```
+
+Import a response set. Imports only add new keys: if any key already exists,
+the whole request is rejected and the catalog is left unchanged.
+
+```bash
+curl -X POST http://localhost:8080/api/response-sets \
+  -H "Content-Type: application/json" \
+  -d '{"version":1,"responses":[{"key":"demoTwo","xml":"<response><status>success</status></response>"}]}'
+```
+
+Response-set defaults are 100 entries and 1,048,576 raw JSON bytes. Change
+them with `PAYLOADPROBE_RESPONSE_SET_MAX_ENTRIES` and
+`PAYLOADPROBE_RESPONSE_SET_MAX_DOCUMENT_BYTES`. Each XML value remains limited
+to 262,144 UTF-8 bytes. The application currently has no authentication, so
+keep all write routes, including `POST /api/response-sets`, behind trusted
+external access controls.
+
 Override the writable store location:
 
 ```bash
