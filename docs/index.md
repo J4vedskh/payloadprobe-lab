@@ -9,6 +9,7 @@ integration adapters, or downstream API behavior.
 | Capability | What it demonstrates |
 | --- | --- |
 | Response catalog | Store XML payloads by key and retrieve them over HTTP |
+| Named scenarios | Reuse ordered test selections and resolve current XML as portable response sets |
 | Legacy compatibility | Keep original PayloadProbe routes working during modernization |
 | Operational readiness | Health checks, Docker, Kubernetes starter manifests, and Prometheus scrape config |
 | Portfolio delivery | CI, OpenAPI, live docs, roadmap, runbook, and daily improvement automation |

@@ -16,7 +16,7 @@ must make real, verified improvements and avoid fake or misleading activity.
 
 | Theme | Example Improvements |
 | --- | --- |
-| Features | import/export, scenario grouping, response versioning |
+| Features | Response-set import/export and named scenario grouping complete; response versioning next |
 | Tests | controller tests, OpenAPI contract checks, persistence edge cases |
 | Docs | diagram refinements, API examples, runbook updates |
 | Platform | Docker image publishing, Helm chart, CI hardening |

@@ -79,6 +79,10 @@ public class PayloadResponseSetService {
                 .sorted(Map.Entry.comparingByKey(Comparator.naturalOrder()))
                 .map(entry -> new PayloadResponseSetEntry(entry.getKey(), entry.getValue()))
                 .toList();
+        return documentForEntries(responses);
+    }
+
+    PayloadResponseSetDocument documentForEntries(List<PayloadResponseSetEntry> responses) {
         PayloadResponseSetDocument document = new PayloadResponseSetDocument(DOCUMENT_VERSION, responses);
         if (responses.size() > maxEntries || serializedSize(document) > maxDocumentBytes) {
             throw new PayloadResponseSetException(PayloadResponseSetException.Reason.EXPORT_TOO_LARGE);

@@ -136,6 +136,26 @@ class RequestCompletionLoggingFilterTests {
     }
 
     @Test
+    void logsTheScenarioTemplateWithoutLoggingItsNameOrBody() throws Exception {
+        MockHttpServletRequest request = sensitiveRequest("PUT", "/api/scenarios/" + PATH_SECRET);
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, (servletRequest, servletResponse) -> {
+            servletRequest.setAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE, "/api/scenarios/{name}");
+            ((HttpServletResponse) servletResponse).setStatus(201);
+        });
+
+        ILoggingEvent event = onlyEvent();
+        assertThat(fields(event))
+                .containsEntry("method", "PUT")
+                .containsEntry("route", "/api/scenarios/{name}")
+                .containsEntry("status", 201)
+                .containsEntry("outcome", "success")
+                .hasSize(6);
+        assertSafe(event);
+    }
+
+    @Test
     void collapsesUnknownRoutesAndMethodsToOther() throws Exception {
         MockHttpServletRequest request = sensitiveRequest("TRACE", "/unknown/" + PATH_SECRET);
         MockHttpServletResponse response = new MockHttpServletResponse();

@@ -70,6 +70,62 @@ startup. If startup reports that atomic moves are unavailable, move
 `PAYLOADPROBE_STORE_PATH` to a local filesystem that supports atomic rename;
 imports are not enabled with a weaker non-atomic fallback.
 
+## Named Scenarios
+
+Create a reusable, ordered test sequence using keys that already exist in the
+catalog:
+
+```bash
+curl -X PUT http://localhost:8080/api/scenarios/payment-happy-path \
+  -H "Content-Type: application/json" \
+  -d '{"responseKeys":["openTest","demo"]}'
+```
+
+Confirm that the catalog view contains only scenario metadata, then resolve the
+selection when the test runner needs the current XML:
+
+```bash
+curl http://localhost:8080/api/scenarios
+curl http://localhost:8080/api/scenarios/payment-happy-path
+```
+
+The resolved document is accepted by the response-set import endpoint when the
+target catalog does not already contain its keys:
+
+```bash
+curl http://localhost:8080/api/scenarios/payment-happy-path \
+  | curl -X POST http://localhost:8080/api/response-sets \
+      -H "Content-Type: application/json" \
+      --data-binary @-
+```
+
+Sending it back to the same catalog normally returns `409` because response-set
+imports are additive and the referenced keys already exist.
+
+The scenario update is atomic: an invalid, duplicate, missing, or stale
+response key returns a fixed error and does not create or replace the scenario.
+A `409` during a write means a referenced response is unavailable or the
+scenario catalog is full; correct the catalog or remove an unused scenario and
+retry. A `409` during resolution means a previously referenced response was
+removed, or the resolved XML exceeds the response-set export limit. Recreate or
+update the scenario for a missing key; reduce its selection or XML size for the
+fixed export-limit error. Do not attempt to infer keys or XML from error bodies.
+
+PUT validates references from one response-catalog snapshot before writing the
+separate scenario file. A concurrent response deletion can make a newly saved
+scenario stale; GET always rechecks the complete selection and returns no
+partial XML.
+
+Scenario data is stored separately at `data/scenarios.json`. Default ceilings
+are 100 scenarios, 100 response keys per scenario, and 65,536 raw JSON bytes
+per write. Set `PAYLOADPROBE_SCENARIOS_PATH`,
+`PAYLOADPROBE_SCENARIO_MAX_SCENARIOS`,
+`PAYLOADPROBE_SCENARIO_MAX_RESPONSE_KEYS`, or
+`PAYLOADPROBE_SCENARIO_MAX_DOCUMENT_BYTES` before startup to change those
+limits. The scenario store also requires atomic rename support in its parent
+directory. All mutable scenario routes are unauthenticated and must remain
+behind trusted external access controls.
+
 ## Request Completion Logs
 
 Console logs use Spring Boot's Logstash JSON format. Each completed synchronous
@@ -98,6 +154,9 @@ Unmatched, static, and management routes collapse to the fixed `other` label.
 | Store changes disappear | Container has no persistent volume | Mount `./data:/data` or set `PAYLOADPROBE_STORE_PATH` |
 | App fails on startup | Store path parent cannot be created | Use a writable path for `PAYLOADPROBE_STORE_PATH` |
 | App reports atomic moves are unavailable | Store filesystem cannot guarantee all-or-nothing imports | Move `PAYLOADPROBE_STORE_PATH` to a filesystem with atomic rename support |
+| Scenario write returns `409` | A key is missing/stale or the scenario catalog is full | Check the response catalog and scenario count, then retry with valid capacity |
+| Scenario resolve returns `409` | A response is missing or the resolved bundle exceeds response-set export limits | Recreate/update missing responses, or reduce the scenario selection/XML size |
+| App fails at scenario-store startup | Scenario directory does not support atomic rename | Set `PAYLOADPROBE_SCENARIOS_PATH` on a filesystem with atomic rename support |
 | Docs build fails | Missing Python dependencies | Run `pip install -r docs/requirements.txt` |
 
 ## Release Checks

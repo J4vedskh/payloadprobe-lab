@@ -34,6 +34,7 @@ import org.springframework.test.web.servlet.MockMvc;
 @SpringBootTest(
         properties = {
             "payloadprobe.store.path=target/test-data/xmlResponses-${random.uuid}.json",
+            "payloadprobe.scenarios.path=target/test-data/scenarios-${random.uuid}.json",
             "management.health.diskspace.enabled=false"
         })
 @AutoConfigureObservability

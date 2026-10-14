@@ -67,6 +67,48 @@ to 262,144 UTF-8 bytes. The application currently has no authentication, so
 keep all write routes, including `POST /api/response-sets`, behind trusted
 external access controls.
 
+Save an ordered, reusable selection of existing response keys as a named
+scenario. Creating a new scenario returns `201`; writing the same name again
+replaces its selection and returns `200`.
+
+```bash
+curl -X PUT http://localhost:8080/api/scenarios/payment-happy-path \
+  -H "Content-Type: application/json" \
+  -d '{"responseKeys":["openTest","demo"]}'
+```
+
+List scenario metadata without XML content:
+
+```bash
+curl http://localhost:8080/api/scenarios
+```
+
+Resolve a scenario when a test harness needs its current XML. The response is
+the same version-1 response-set document accepted by `POST /api/response-sets`:
+
+```bash
+curl http://localhost:8080/api/scenarios/payment-happy-path
+```
+
+Scenario names and response keys use the same 1-120-character safe-key rule.
+Each scenario must contain an ordered, nonempty, duplicate-free list of keys
+that already exist in the response catalog. Scenario storage is separate at
+`data/scenarios.json`, validates the entire request before writing, and uses an
+atomic file replacement. A stale or missing response reference returns `409`
+without returning XML or partially changing a scenario. A resolved scenario
+that exceeds the response-set export limit returns a separate fixed `409`.
+Reference validation uses one catalog snapshot; a concurrent or later response
+deletion can therefore make a saved scenario stale, and resolution always
+rechecks before returning XML.
+
+The defaults are 100 scenarios, 100 response keys per scenario, and 65,536 raw
+JSON bytes per scenario write. Change them with `PAYLOADPROBE_SCENARIOS_PATH`,
+`PAYLOADPROBE_SCENARIO_MAX_SCENARIOS`,
+`PAYLOADPROBE_SCENARIO_MAX_RESPONSE_KEYS`, and
+`PAYLOADPROBE_SCENARIO_MAX_DOCUMENT_BYTES`. Scenario writes and deletes are
+also unauthenticated mutable routes, so keep them behind trusted external
+access controls.
+
 Override the writable store location:
 
 ```bash
