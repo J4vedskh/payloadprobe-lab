@@ -34,6 +34,7 @@ import org.springframework.test.annotation.DirtiesContext;
 
 @SpringBootTest(properties = {
         "payloadprobe.store.path=target/test-data/response-sets-${random.uuid}.json",
+        "payloadprobe.scenarios.path=target/test-data/scenarios-${random.uuid}.json",
         "payloadprobe.response-sets.max-entries=100",
         "payloadprobe.response-sets.max-document-bytes=16384",
         "management.health.diskspace.enabled=false"

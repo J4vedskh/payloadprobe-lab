@@ -8,6 +8,7 @@
 - Add privacy-safe structured request completion logging.
 - Add an importable Grafana dashboard starter for bounded operational metrics.
 - Add versioned response-set export and additive, atomic import.
+- Add named scenarios with ordered, validated response selections and portable resolution.
 
 ## Near Term
 
@@ -26,6 +27,5 @@
 
 ## Product Depth
 
-- Add named scenarios for test suites.
 - Add response version history.
 - Add optional authentication for write endpoints.

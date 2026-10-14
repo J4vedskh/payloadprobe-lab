@@ -6,6 +6,9 @@ older PayloadProbe clients have a migration path.
 Response sets are available at `/api/response-sets`. They provide a portable,
 versioned JSON export and an additive-only import for a catalog.
 
+Named scenarios are available at `/api/scenarios`. They store an ordered
+selection of response keys for a repeatable test case without copying XML.
+
 ## Modern API
 
 | Method | Path | Result |
@@ -18,6 +21,10 @@ versioned JSON export and an additive-only import for a catalog.
 | `POST` | `/api/responses/default` | Default XML sample |
 | `GET` | `/api/response-sets` | Export the complete response catalog |
 | `POST` | `/api/response-sets` | Add a response set without overwriting keys |
+| `GET` | `/api/scenarios` | Metadata-only scenario list, sorted by name |
+| `PUT` | `/api/scenarios/{name}` | Create or replace an ordered response-key selection |
+| `GET` | `/api/scenarios/{name}` | Resolve current XML as a version-1 response set |
+| `DELETE` | `/api/scenarios/{name}` | Delete a scenario |
 | `GET` | `/actuator/health` | Spring Boot health status |
 | `GET` | `/actuator/metrics/{metricName}` | One Actuator metric and its available tags |
 | `GET` | `/actuator/prometheus` | Prometheus-format operational metrics |
@@ -102,6 +109,81 @@ Configure the two response-set limits with
 `PAYLOADPROBE_RESPONSE_SET_MAX_DOCUMENT_BYTES`. The application has no
 authentication, so keep imports and all mutable routes behind trusted external
 access controls.
+
+## Named Scenarios
+
+Named scenarios make a test selection reusable while keeping the response
+catalog as the single XML source of truth. A scenario stores only an ordered
+list of existing response keys; it does not duplicate XML content.
+
+`GET /api/scenarios` returns metadata only, ordered by scenario name. It never
+returns response keys or XML values:
+
+```json
+{
+  "count": 1,
+  "scenarios": [
+    {
+      "name": "payment-happy-path",
+      "responseCount": 2
+    }
+  ]
+}
+```
+
+Create or replace a scenario with `PUT /api/scenarios/{name}` and
+`Content-Type: application/json`. The list must be nonempty, ordered, contain
+no duplicate entries, and every key must currently exist. A first write returns
+`201`; a replacement returns `200`:
+
+```json
+{
+  "responseKeys": ["openTest", "demo"]
+}
+```
+
+`GET /api/scenarios/{name}` resolves those keys against the current response
+catalog and returns the exact version-1 `ResponseSetDocument` shape shown in
+the Response Sets section. Send that response directly to
+`POST /api/response-sets` when moving the scenario's current XML to another
+trusted catalog that does not already contain those response keys. Importing
+back into the same catalog returns the response-set importer's normal `409`.
+
+`DELETE /api/scenarios/{name}` returns `204`; an unknown scenario returns
+`404`. A named scenario is deliberately not a frozen payload snapshot: if a
+stored key is later removed, resolving the scenario returns `409` and no XML
+is returned. Resolution also returns a different fixed `409` when the current
+XML bundle exceeds the configured response-set export limit.
+
+Scenario writes validate references against one catalog snapshot immediately
+before the separate atomic scenario-file write. A concurrent response deletion
+can make a newly written scenario stale; every resolution rechecks all keys and
+fails without partial XML.
+
+The scenario document, limits, names, and key references are all checked
+before storage changes. Failures use a fixed JSON `message` only and never
+echo a scenario name, response key, XML value, parser detail, or filesystem
+path:
+
+| Operation | Status | Message |
+| --- | --- | --- |
+| Create or replace | `400` | `Invalid scenario document.` |
+| Create or replace | `413` | `Scenario document exceeds the configured size limit.` |
+| Create or replace or resolve | `409` | `Scenario references an unavailable response.` |
+| Resolve | `409` | `Scenario exceeds the configured response-set export limit.` |
+| Create | `409` | `Scenario catalog limit reached.` |
+| Resolve or delete | `404` | `No scenario found.` |
+| Create or replace | `415` | `Unsupported Content-Type. Use application/json.` |
+| Create, replace, or delete | `503` | `Scenario could not be persisted.` |
+
+Scenarios are persisted separately in `data/scenarios.json`, with an atomic
+replacement in the same directory. Defaults are 100 scenarios, 100 response
+keys per scenario, and 65,536 raw JSON bytes. Configure them with
+`PAYLOADPROBE_SCENARIOS_PATH`, `PAYLOADPROBE_SCENARIO_MAX_SCENARIOS`,
+`PAYLOADPROBE_SCENARIO_MAX_RESPONSE_KEYS`, and
+`PAYLOADPROBE_SCENARIO_MAX_DOCUMENT_BYTES`. The service has no authentication:
+keep scenario writes and deletes, as well as all other mutable APIs, behind
+trusted external access controls.
 
 ## Legacy Aliases
 

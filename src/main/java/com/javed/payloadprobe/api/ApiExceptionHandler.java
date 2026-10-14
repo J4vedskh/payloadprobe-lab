@@ -45,7 +45,9 @@ class ApiExceptionHandler {
             HttpServletRequest request) {
         String message = request.getRequestURI().endsWith("/api/response-sets")
                 ? PayloadResponseSetExceptionHandler.UNSUPPORTED_MEDIA_TYPE_MESSAGE
-                : UNSUPPORTED_MEDIA_TYPE_MESSAGE;
+                : request.getRequestURI().startsWith(request.getContextPath() + "/api/scenarios")
+                        ? PayloadScenarioExceptionHandler.UNSUPPORTED_MEDIA_TYPE_MESSAGE
+                        : UNSUPPORTED_MEDIA_TYPE_MESSAGE;
         return messageResponse(HttpStatus.UNSUPPORTED_MEDIA_TYPE, message);
     }
 

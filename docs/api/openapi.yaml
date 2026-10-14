@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: PayloadProbe Lab API
-  version: 0.4.0
+  version: 0.5.0
   description: >-
     API for managing named XML mock responses. Write endpoints accept non-empty,
     well-formed XML documents or fragments and preserve accepted payload text.
@@ -56,6 +56,93 @@ paths:
           $ref: "#/components/responses/UnsupportedJsonMediaType"
         "503":
           $ref: "#/components/responses/ResponseSetPersistenceFailure"
+  /api/scenarios:
+    get:
+      summary: List named response scenarios
+      description: >-
+        Returns deterministic scenario metadata without XML payloads. The
+        configurable scenario catalog limit defaults to 100.
+      responses:
+        "200":
+          description: Scenario catalog ordered by name
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PayloadScenarioCatalogResponse"
+  /api/scenarios/{name}:
+    parameters:
+      - $ref: "#/components/parameters/ScenarioName"
+    get:
+      summary: Resolve a scenario as a response set
+      description: >-
+        Resolves every referenced response from one catalog snapshot and
+        preserves the scenario's declared order. The returned version 1
+        document can be submitted to POST /api/response-sets on a catalog that
+        does not already contain its response keys.
+      responses:
+        "200":
+          description: Portable version 1 response set
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResponseSetDocument"
+        "400":
+          $ref: "#/components/responses/InvalidScenarioDocument"
+        "404":
+          $ref: "#/components/responses/ScenarioNotFound"
+        "409":
+          $ref: "#/components/responses/ScenarioUnavailable"
+    put:
+      summary: Create or replace a named scenario
+      description: >-
+        Atomically stores a non-empty, ordered, duplicate-free selection of
+        currently available response keys. Returns 201 when created and 200
+        when an existing scenario is fully replaced. Defaults are 100 stored
+        scenarios, 100 response keys per scenario, and 65,536 raw JSON bytes.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PayloadScenarioRequest"
+      responses:
+        "200":
+          description: Existing scenario replaced
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PayloadScenarioSummary"
+        "201":
+          description: Scenario created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PayloadScenarioSummary"
+        "400":
+          $ref: "#/components/responses/InvalidScenarioDocument"
+        "409":
+          description: A referenced response is unavailable or the scenario catalog is full
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "413":
+          $ref: "#/components/responses/ScenarioTooLarge"
+        "415":
+          $ref: "#/components/responses/UnsupportedJsonMediaType"
+        "503":
+          $ref: "#/components/responses/ScenarioPersistenceFailure"
+    delete:
+      summary: Delete a named scenario
+      responses:
+        "204":
+          description: Scenario deleted
+        "400":
+          $ref: "#/components/responses/InvalidScenarioDocument"
+        "404":
+          $ref: "#/components/responses/ScenarioNotFound"
+        "503":
+          $ref: "#/components/responses/ScenarioPersistenceFailure"
   /api/responses:
     get:
       summary: List response keys
@@ -285,6 +372,53 @@ components:
           schema:
             $ref: "#/components/schemas/XmlPayload"
   responses:
+    InvalidScenarioDocument:
+      description: Invalid scenario name or JSON document
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/MessageResponse"
+          example:
+            message: Invalid scenario document.
+    ScenarioNotFound:
+      description: Scenario does not exist
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/MessageResponse"
+          example:
+            message: No scenario found.
+    ScenarioUnavailable:
+      description: >-
+        At least one referenced response is unavailable or the resolved bundle
+        exceeds response-set export limits; no partial response set is returned
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/MessageResponse"
+          examples:
+            unavailableResponse:
+              value:
+                message: Scenario references an unavailable response.
+            exportLimit:
+              value:
+                message: Scenario exceeds the configured response-set export limit.
+    ScenarioTooLarge:
+      description: Raw scenario JSON exceeds the configured byte limit
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/MessageResponse"
+          example:
+            message: Scenario document exceeds the configured size limit.
+    ScenarioPersistenceFailure:
+      description: Atomic scenario persistence could not complete
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/MessageResponse"
+          example:
+            message: Scenario could not be persisted.
     ResponseSetExportTooLarge:
       description: Current catalog exceeds an export limit
       content:
@@ -318,7 +452,7 @@ components:
           example:
             message: Response-set document exceeds the configured size limit.
     UnsupportedJsonMediaType:
-      description: Response-set imports require application/json
+      description: JSON write operations require application/json
       content:
         application/json:
           schema:
@@ -387,6 +521,13 @@ components:
           example:
             message: Unsupported Content-Type. Use application/xml, text/xml, or text/plain.
   parameters:
+    ScenarioName:
+      name: name
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: "^[A-Za-z0-9._-]{1,120}$"
     Key:
       name: key
       in: path
@@ -395,6 +536,50 @@ components:
         type: string
         pattern: "^[A-Za-z0-9._-]{1,120}$"
   schemas:
+    PayloadScenarioRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - responseKeys
+      properties:
+        responseKeys:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          description: Ordered response keys; the configurable limit defaults to 100.
+          items:
+            type: string
+            pattern: "^[A-Za-z0-9._-]{1,120}$"
+    PayloadScenarioSummary:
+      type: object
+      additionalProperties: false
+      required:
+        - name
+        - responseCount
+      properties:
+        name:
+          type: string
+          pattern: "^[A-Za-z0-9._-]{1,120}$"
+          example: smoke
+        responseCount:
+          type: integer
+          minimum: 1
+          example: 2
+    PayloadScenarioCatalogResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - count
+        - scenarios
+      properties:
+        count:
+          type: integer
+          minimum: 0
+          example: 1
+        scenarios:
+          type: array
+          items:
+            $ref: "#/components/schemas/PayloadScenarioSummary"
     ResponseSetDocument:
       type: object
       additionalProperties: false

@@ -27,6 +27,8 @@ public final class RequestCompletionLoggingFilter extends OncePerRequestFilter {
             "/api/responses/{key}",
             "/api/responses/default",
             "/api/response-sets",
+            "/api/scenarios",
+            "/api/scenarios/{name}",
             "/fetch/{key}",
             "/add/{key}",
             "/update/{key}",

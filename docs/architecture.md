@@ -22,17 +22,51 @@ it only creates missing keys. As with every mutable route, deployment must
 place it behind trusted external access controls because this application does
 not provide authentication.
 
+## Named scenarios
+
+The scenario API stores reusable test selections separately from the XML
+catalog. `PUT /api/scenarios/{name}` accepts an ordered, nonempty, unique list
+of response keys. It checks the document size, name, key list, scenario limit,
+and every current response reference before one atomic write to
+`data/scenarios.json`. A validation failure, stale reference, capacity limit,
+or persistence failure leaves the existing scenario file untouched.
+
+`GET /api/scenarios` exposes only sorted scenario metadata. It intentionally
+does not reveal response keys or XML. `GET /api/scenarios/{name}` resolves the
+stored key sequence against a single current catalog snapshot and creates the
+same version-1 response-set document used for catalog export. This keeps a
+scenario importable while ensuring it always reflects the current XML. If any
+reference has become stale, resolution stops with a fixed `409` response and
+does not return a partial document. A bundle beyond the response-set export
+limit returns its own fixed `409`.
+
+The response catalog and scenario metadata use separate locks and files rather
+than pretending to provide a cross-file transaction. PUT validates one catalog
+snapshot immediately before the scenario write; a concurrent or later response
+deletion may make that scenario stale. GET resolution always takes a fresh
+catalog snapshot and fails closed instead of returning partial XML.
+
+The scenario store uses the same atomic-move requirement as the response
+catalog, but a different file and lock. It is not a synchronization or backup
+mechanism; response-set export/import remains the portable catalog mechanism.
+Because the service has no authentication, deployments must keep mutable
+scenario routes behind trusted external access controls.
+
 ## Component View
 
 ```mermaid
 flowchart LR
     Client["Client or test harness"] --> ModernApi["Modern API /api/responses"]
+    Client --> ScenarioApi["Scenario API /api/scenarios"]
     Client --> LegacyApi["Legacy aliases /fetch, /add, /update"]
     ModernApi --> Store["Payload response store"]
+    ScenarioApi --> Store
+    ScenarioApi --> ScenarioStore["Payload scenario store"]
     LegacyApi --> Store
     ModernApi --> RequestLog["Safe request completion log"]
     LegacyApi --> RequestLog
     Store --> JsonFile["JSON file data/xmlResponses.json"]
+    ScenarioStore --> ScenarioFile["JSON file data/scenarios.json"]
     Store --> Seed["Classpath seed xmlResponses.json"]
     Spring["Spring Boot Actuator"] --> Health["/actuator/health"]
     Store --> Metrics["Bounded catalog metrics"]
@@ -59,6 +93,10 @@ sequenceDiagram
     Store-->>API: XML payload
     API-->>Client: application/xml
     API-->>Log: fixed completion metadata only
+    Client->>API: PUT /api/scenarios/{name}
+    API->>Store: validate every referenced key
+    API->>File: atomically persist scenarios.json
+    API-->>Client: 201 created or 200 replaced
 ```
 
 ## Deployment Topology

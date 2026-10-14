@@ -18,6 +18,11 @@ payloadprobe:
   response-sets:
     max-entries: ${PAYLOADPROBE_RESPONSE_SET_MAX_ENTRIES:100}
     max-document-bytes: ${PAYLOADPROBE_RESPONSE_SET_MAX_DOCUMENT_BYTES:1048576}
+  scenarios:
+    path: ${PAYLOADPROBE_SCENARIOS_PATH:data/scenarios.json}
+    max-scenarios: ${PAYLOADPROBE_SCENARIO_MAX_SCENARIOS:100}
+    max-response-keys: ${PAYLOADPROBE_SCENARIO_MAX_RESPONSE_KEYS:100}
+    max-document-bytes: ${PAYLOADPROBE_SCENARIO_MAX_DOCUMENT_BYTES:65536}
 
 management:
   endpoints:
