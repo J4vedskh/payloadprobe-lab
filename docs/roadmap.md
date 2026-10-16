@@ -9,14 +9,16 @@
 - Add an importable Grafana dashboard starter for bounded operational metrics.
 - Add versioned response-set export and additive, atomic import.
 - Add named scenarios with ordered, validated response selections and portable resolution.
+- Add bounded response version history with retained XML reads.
 
 ## Near Term
 
-- Add generated OpenAPI publishing to the documentation site.
-- Add Docker image publishing through GitHub Actions.
+- Add optional authentication for write endpoints.
 
 ## Platform
 
+- Publish the generated OpenAPI contract through the documentation workflow.
+- Publish Docker images through GitHub Actions.
 - Add Helm chart or Kustomize overlays.
 - Add readiness and liveness probes in Kubernetes.
 - Add container image vulnerability scanning.
@@ -27,5 +29,4 @@
 
 ## Product Depth
 
-- Add response version history.
-- Add optional authentication for write endpoints.
+- Define role-based access once write-endpoint authentication exists.

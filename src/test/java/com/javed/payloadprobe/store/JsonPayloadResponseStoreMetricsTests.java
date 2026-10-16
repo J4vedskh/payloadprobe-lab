@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.javed.payloadprobe.config.PayloadProbeProperties;
+import com.javed.payloadprobe.config.PayloadResponseHistoryProperties;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -22,6 +23,7 @@ class JsonPayloadResponseStoreMetricsTests {
     private SimpleMeterRegistry meterRegistry;
     private JsonPayloadResponseStore store;
     private Path storePath;
+    private PayloadResponseHistoryProperties historyProperties;
 
     @BeforeEach
     void setUp() throws IOException {
@@ -34,8 +36,9 @@ class JsonPayloadResponseStoreMetricsTests {
 
         PayloadProbeProperties properties = new PayloadProbeProperties();
         properties.setPath(storePath);
+        historyProperties = new PayloadResponseHistoryProperties();
         meterRegistry = new SimpleMeterRegistry();
-        store = new JsonPayloadResponseStore(objectMapper, properties, meterRegistry);
+        store = new JsonPayloadResponseStore(objectMapper, properties, historyProperties, meterRegistry);
         store.initialize();
     }
 
@@ -111,9 +114,9 @@ class JsonPayloadResponseStoreMetricsTests {
                 .containsEntry("beta", "<beta/>")
                 .containsEntry("gamma", "<gamma/>")
                 .containsEntry("delta", "<delta/>");
-        assertThat(new ObjectMapper().readValue(storePath.toFile(), Map.class))
-                .containsEntry("gamma", "<gamma/>")
-                .containsEntry("delta", "<delta/>");
+        assertThat(new ObjectMapper().readTree(storePath.toFile()).path("responses").toString())
+                .contains("\"key\":\"gamma\"")
+                .contains("\"key\":\"delta\"");
         assertThat(gaugeValue()).isEqualTo(4.0);
     }
 
@@ -131,6 +134,7 @@ class JsonPayloadResponseStoreMetricsTests {
             JsonPayloadResponseStore unsupportedStore = new JsonPayloadResponseStore(
                     new ObjectMapper(),
                     unsupportedProperties,
+                    historyProperties,
                     unsupportedRegistry,
                     (source, target) -> {
                         throw new AtomicMoveNotSupportedException(
@@ -141,7 +145,7 @@ class JsonPayloadResponseStoreMetricsTests {
 
             assertThatThrownBy(unsupportedStore::initialize)
                     .isInstanceOf(IllegalStateException.class)
-                    .hasMessage("PayloadProbe response imports require atomic file moves in the store directory.");
+                    .hasMessage("PayloadProbe response storage requires atomic file moves in the store directory.");
             assertThat(Files.exists(unsupportedPath)).isFalse();
         } finally {
             unsupportedRegistry.close();

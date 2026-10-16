@@ -12,7 +12,7 @@ Live docs: https://j4vedskh.github.io/payloadprobe-lab/
 | Area | Implementation |
 | --- | --- |
 | Backend | Java 17, Spring Boot 3, REST APIs, validation, Actuator |
-| Storage | JSON-backed response catalog seeded from classpath data |
+| Storage | JSON-backed response catalog with bounded, retained response history |
 | Compatibility | Legacy aliases for the original PayloadProbe endpoints |
 | Platform | Dockerfile, Docker Compose, Kubernetes starter manifests |
 | Delivery | GitHub Actions CI and GitHub Pages documentation |
@@ -44,6 +44,27 @@ curl -X POST http://localhost:8080/api/responses/demo \
   -H "Content-Type: application/xml" \
   -d "<response><status>success</status></response>"
 ```
+
+Each newly created response starts at revision `1`. Read a response's retained
+revision metadata (newest first) or retrieve the exact XML from one revision:
+
+```bash
+curl http://localhost:8080/api/responses/demo/versions
+curl http://localhost:8080/api/responses/demo/versions/1
+```
+
+Every successful `PUT /api/responses/{key}` and legacy `/update/{key}` creates
+the next revision, even when the XML is unchanged. Imports create revision `1`
+for every new key. PayloadProbe retains the latest 10 revisions per response,
+including the current revision. Set
+`PAYLOADPROBE_RESPONSE_HISTORY_MAX_REVISIONS_PER_RESPONSE` to a value from `1`
+to `1000` before startup to change that limit.
+
+Revision numbers only move forward while a response exists; pruned revisions
+are not available. Deleting a response removes all of its history, and
+recreating the key starts again at revision `1`. Historical reads are
+read-only: to make an older XML value current, fetch it and submit it with the
+normal `PUT` route, which creates a new revision.
 
 Export the current catalog as a portable response set:
 
@@ -115,6 +136,12 @@ Override the writable store location:
 set PAYLOADPROBE_STORE_PATH=C:\temp\payloadprobe\xmlResponses.json
 mvn spring-boot:run
 ```
+
+On first startup after an upgrade, a legacy flat response map is converted to
+the current versioned single-file format through an atomic replacement. Keep a
+backup of the store before upgrading, and ensure the store directory supports
+atomic rename. The service has no authentication, so keep every mutable route
+behind trusted external access controls.
 
 ## Documentation
 

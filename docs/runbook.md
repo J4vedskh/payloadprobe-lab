@@ -15,6 +15,50 @@ curl http://localhost:8080/api/responses
 curl http://localhost:8080/api/responses/openTest
 ```
 
+## Response History
+
+List retained revision metadata, newest first, or fetch one retained XML value:
+
+```bash
+curl http://localhost:8080/api/responses/openTest/versions
+curl http://localhost:8080/api/responses/openTest/versions/1
+```
+
+The metadata response contains the key, current revision, retained count, and
+`revision`/`current` entries only. The single-revision route returns the exact
+stored XML. New responses and response-set imports start at revision `1`.
+Every successful modern `PUT` and legacy `/update/{key}` adds a revision, even
+when the XML did not change.
+
+PayloadProbe retains 10 revisions per response by default, including the
+current revision. Configure 1 through 1000 retained revisions before startup:
+
+```bash
+set PAYLOADPROBE_RESPONSE_HISTORY_MAX_REVISIONS_PER_RESPONSE=25
+mvn spring-boot:run
+```
+
+There is no rollback endpoint. To make a retained XML value current, fetch it
+and PUT it back; that appends a new revision instead of rewriting history:
+
+```bash
+curl http://localhost:8080/api/responses/openTest/versions/1 > response-v1.xml
+curl -X PUT http://localhost:8080/api/responses/openTest \
+  -H "Content-Type: application/xml" \
+  --data-binary @response-v1.xml
+```
+
+Pruned revisions return `404`. Deleting a response removes all revisions; a
+later recreation of the same key begins at revision `1`. The read routes are
+safe to expose only according to your normal data policy; all routes that
+create, update, import, or delete data remain unauthenticated and must stay
+behind trusted external access controls.
+
+On startup, a legacy flat response map is migrated to the versioned response
+store in one atomic file replacement. Back up the data file before upgrading.
+If startup reports atomic moves are unavailable, move
+`PAYLOADPROBE_STORE_PATH` to a local filesystem that supports atomic rename.
+
 ## Catalog Metrics
 
 Inspect one metric through Actuator or scrape all metrics in Prometheus format:
@@ -136,7 +180,7 @@ server-controlled fields; async and error redispatches are skipped:
 | --- | --- |
 | `event` | Fixed `http_request_completed` event name |
 | `method` | `GET`, `POST`, `PUT`, `DELETE`, `PATCH`, `HEAD`, `OPTIONS`, or `OTHER` |
-| `route` | Allow-listed route template such as `/api/responses/{key}`, or `other` |
+| `route` | Allow-listed route template such as `/api/responses/{key}` or `/api/responses/{key}/versions`, or `other` |
 | `status` | Final HTTP status, or fixed `500` for an unhandled failure |
 | `outcome` | `success`, `client_error`, `server_error`, or `other` |
 | `duration_ms` | Server-measured elapsed milliseconds |
@@ -151,6 +195,7 @@ Unmatched, static, and management routes collapse to the fixed `other` label.
 | Symptom | Likely cause | Action |
 | --- | --- | --- |
 | `404` for a key | The response was not created or was deleted | Check `/api/responses` and recreate it |
+| History lookup returns `404` | The revision was pruned, or the response was deleted | List retained revisions; restore by PUTting a retained XML if needed |
 | Store changes disappear | Container has no persistent volume | Mount `./data:/data` or set `PAYLOADPROBE_STORE_PATH` |
 | App fails on startup | Store path parent cannot be created | Use a writable path for `PAYLOADPROBE_STORE_PATH` |
 | App reports atomic moves are unavailable | Store filesystem cannot guarantee all-or-nothing imports | Move `PAYLOADPROBE_STORE_PATH` to a filesystem with atomic rename support |

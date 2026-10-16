@@ -1,7 +1,29 @@
 # Architecture
 
 PayloadProbe Lab keeps the application intentionally small: one Spring Boot
-service, one JSON-backed response catalog, and clear HTTP boundaries.
+service, one versioned JSON-backed response catalog with bounded history, and
+clear HTTP boundaries.
+
+## Response history
+
+The response store keeps each key's current XML together with its retained
+revisions in the same versioned JSON file. Creating a response, including a
+response-set import, starts it at revision `1`. Each successful modern or
+legacy update appends a revision, even if its XML equals the current XML. The
+configured limit retains the latest 10 revisions per response by default,
+including the current value; startup accepts values from 1 through 1000.
+
+Revision identifiers advance monotonically for the lifetime of a key. When
+retention prunes an older XML value, its identifier is not reused. Deleting a
+key removes its history; recreating that key begins again at revision `1`.
+History has no rollback operation. Promoting an older XML is an ordinary update
+that appends a new revision, which keeps the change trail clear.
+
+The existing flat `key -> XML` store format is recognized during startup and
+eagerly migrated to the versioned single-file format. The migration uses the
+same temporary-file and atomic-replacement path as normal writes: either the
+old file remains intact or the complete versioned file replaces it. Current
+catalog, response-set, and scenario operations still read the current XML only.
 
 ## Response-set export and import
 
@@ -65,7 +87,7 @@ flowchart LR
     LegacyApi --> Store
     ModernApi --> RequestLog["Safe request completion log"]
     LegacyApi --> RequestLog
-    Store --> JsonFile["JSON file data/xmlResponses.json"]
+    Store --> JsonFile["Versioned JSON file data/xmlResponses.json"]
     ScenarioStore --> ScenarioFile["JSON file data/scenarios.json"]
     Store --> Seed["Classpath seed xmlResponses.json"]
     Spring["Spring Boot Actuator"] --> Health["/actuator/health"]
@@ -92,6 +114,10 @@ sequenceDiagram
     API->>Store: find key
     Store-->>API: XML payload
     API-->>Client: application/xml
+    Client->>API: GET /api/responses/{key}/versions
+    API->>Store: list retained revisions
+    Store-->>API: newest-first metadata
+    API-->>Client: application/json
     API-->>Log: fixed completion metadata only
     Client->>API: PUT /api/scenarios/{name}
     API->>Store: validate every referenced key

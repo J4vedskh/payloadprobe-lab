@@ -18,6 +18,8 @@ payloadprobe:
   response-sets:
     max-entries: ${PAYLOADPROBE_RESPONSE_SET_MAX_ENTRIES:100}
     max-document-bytes: ${PAYLOADPROBE_RESPONSE_SET_MAX_DOCUMENT_BYTES:1048576}
+  response-history:
+    max-revisions-per-response: ${PAYLOADPROBE_RESPONSE_HISTORY_MAX_REVISIONS_PER_RESPONSE:10}
   scenarios:
     path: ${PAYLOADPROBE_SCENARIOS_PATH:data/scenarios.json}
     max-scenarios: ${PAYLOADPROBE_SCENARIO_MAX_SCENARIOS:100}
