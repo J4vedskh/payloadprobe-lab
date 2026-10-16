@@ -181,6 +181,8 @@ class LegacyPayloadControllerTests {
                         tuple("POST", "/default"),
                         tuple("GET", "/api/response-sets"),
                         tuple("POST", "/api/response-sets"),
+                        tuple("GET", "/api/responses/{key}/versions"),
+                        tuple("GET", "/api/responses/{key}/versions/{revision}"),
                         tuple("GET", "/api/scenarios"),
                         tuple("GET", "/api/scenarios/{name}"),
                         tuple("PUT", "/api/scenarios/{name}"),

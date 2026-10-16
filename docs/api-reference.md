@@ -18,6 +18,8 @@ selection of response keys for a repeatable test case without copying XML.
 | `POST` | `/api/responses/{key}` | Create XML response, `409` if it exists |
 | `PUT` | `/api/responses/{key}` | Update XML response, `404` if missing |
 | `DELETE` | `/api/responses/{key}` | Delete XML response, `404` if missing |
+| `GET` | `/api/responses/{key}/versions` | Retained revision metadata, newest first |
+| `GET` | `/api/responses/{key}/versions/{revision}` | Exact XML for one retained revision |
 | `POST` | `/api/responses/default` | Default XML sample |
 | `GET` | `/api/response-sets` | Export the complete response catalog |
 | `POST` | `/api/response-sets` | Add a response set without overwriting keys |
@@ -55,6 +57,48 @@ Invalid bodies return one stable JSON field and are not written to the store:
 
 Unsupported request media types return `415` with the same one-field JSON
 shape. The full set of fixed error examples is in the OpenAPI contract.
+
+## Response History
+
+Every response has an append-only, bounded history. A successful `POST` or
+response-set import creates revision `1`. Every successful modern `PUT` and
+legacy `/update/{key}` appends the next revision, including a write whose XML
+matches the current value. Existing catalog, response-set, and scenario reads
+continue to use only the current XML.
+
+`GET /api/responses/{key}/versions` returns retained metadata only, newest
+first:
+
+```json
+{
+  "key": "demo",
+  "currentRevision": 3,
+  "retainedCount": 3,
+  "versions": [
+    { "revision": 3, "current": true },
+    { "revision": 2, "current": false },
+    { "revision": 1, "current": false }
+  ]
+}
+```
+
+`GET /api/responses/{key}/versions/{revision}` returns that retained revision's
+exact XML with an XML content type. Revision identifiers remain monotonic while
+the response exists, so the retained list can have gaps after pruning. The
+default retention limit is 10 revisions per response, including the current
+revision. Configure a value from 1 through 1000 with
+`PAYLOADPROBE_RESPONSE_HISTORY_MAX_REVISIONS_PER_RESPONSE` before startup.
+
+There is deliberately no rollback endpoint. To promote an older retained XML,
+fetch it and send it to `PUT /api/responses/{key}`; that preserves the audit
+trail by appending a new revision. Deleting a response purges its full history;
+if the key is later recreated, its history begins again at revision `1`.
+
+A missing response returns the normal response-key `404`. A missing or pruned
+revision returns `404`, and a revision that is not a positive whole number
+returns `400`. History endpoints are read-only, but `POST`, `PUT`, legacy
+updates, imports, and deletes remain unauthenticated mutable APIs. Keep them
+behind trusted external access controls.
 
 ## Response Sets
 
@@ -202,7 +246,8 @@ trusted external access controls.
 Legacy aliases use the same key and body validation rules as the modern API.
 For compatibility, a missing legacy `GET|POST /fetch/{key}` still returns
 `200 application/xml` with a failure payload. The modern fetch route returns a
-JSON `404` instead.
+JSON `404` instead. A successful legacy `/update/{key}` appends a response
+revision exactly like the modern `PUT` route.
 
 ## OpenAPI
 

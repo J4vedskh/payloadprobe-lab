@@ -97,6 +97,11 @@ public class LegacyPayloadController {
         return new ApiHelpResponse(List.of(
                 new ApiEndpoint("GET", "/api/responses", "List all stored XML response keys."),
                 new ApiEndpoint("GET", "/api/responses/{key}", "Fetch the XML response for a key."),
+                new ApiEndpoint("GET", "/api/responses/{key}/versions", "List retained response versions."),
+                new ApiEndpoint(
+                        "GET",
+                        "/api/responses/{key}/versions/{revision}",
+                        "Fetch one retained XML response version."),
                 new ApiEndpoint("POST", "/api/responses/{key}", "Create a new XML response for a key."),
                 new ApiEndpoint("PUT", "/api/responses/{key}", "Update an existing XML response."),
                 new ApiEndpoint("DELETE", "/api/responses/{key}", "Delete an XML response."),

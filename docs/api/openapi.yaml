@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: PayloadProbe Lab API
-  version: 0.5.0
+  version: 0.6.0
   description: >-
     API for managing named XML mock responses. Write endpoints accept non-empty,
     well-formed XML documents or fragments and preserve accepted payload text.
@@ -153,6 +153,76 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PayloadCatalogResponse"
+  /api/responses/{key}/versions:
+    parameters:
+      - $ref: "#/components/parameters/Key"
+    get:
+      summary: List retained XML response versions
+      description: >-
+        Returns retained revision metadata newest-first. The newest revision is
+        current and is the XML used by normal response fetches, response-set
+        exports, and scenario resolution. Each successful update creates a new
+        revision; newly created responses start at revision 1. Retention is
+        configurable through payloadprobe.response-history.max-revisions-per-response
+        and defaults to 10 revisions per response. Older revisions are read-only:
+        this API provides no rollback or individual-version deletion. Deleting
+        the response purges its full retained history; recreating the key starts
+        again at revision 1.
+      responses:
+        "200":
+          description: Retained response version metadata, newest first
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PayloadResponseVersionHistory"
+        "400":
+          $ref: "#/components/responses/InvalidKey"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/responses/{key}/versions/{revision}:
+    parameters:
+      - $ref: "#/components/parameters/Key"
+      - $ref: "#/components/parameters/ResponseRevision"
+    get:
+      summary: Fetch the exact XML for one retained response version
+      description: >-
+        Returns exactly the XML retained for the requested revision. A revision
+        that has been pruned by retention, or was never created, returns the
+        same fixed 404 response. Retained versions are read-only; rollback and
+        individual-version deletion are not supported.
+      responses:
+        "200":
+          description: Retained XML response
+          content:
+            application/xml:
+              schema:
+                type: string
+        "400":
+          description: Invalid response key or revision
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+              examples:
+                invalidKey:
+                  value:
+                    message: Invalid response key. Use 1-120 letters, numbers, dots, underscores, or hyphens.
+                invalidRevision:
+                  value:
+                    message: Invalid response revision. Use a positive whole number.
+        "404":
+          description: Response key does not exist, or the requested revision is not retained
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+              examples:
+                missingKey:
+                  value:
+                    message: "No XML response found for key: example-key"
+                unavailableRevision:
+                  value:
+                    message: No retained XML response found for revision.
   /api/responses/{key}:
     parameters:
       - $ref: "#/components/parameters/Key"
@@ -535,6 +605,16 @@ components:
       schema:
         type: string
         pattern: "^[A-Za-z0-9._-]{1,120}$"
+    ResponseRevision:
+      name: revision
+      in: path
+      required: true
+      description: Positive retained response revision number.
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
+      example: 2
   schemas:
     PayloadScenarioRequest:
       type: object
@@ -580,6 +660,51 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/PayloadScenarioSummary"
+    PayloadResponseVersionHistory:
+      type: object
+      additionalProperties: false
+      required:
+        - key
+        - currentRevision
+        - retainedCount
+        - versions
+      properties:
+        key:
+          type: string
+          pattern: "^[A-Za-z0-9._-]{1,120}$"
+          example: paymentSuccess
+        currentRevision:
+          type: integer
+          format: int64
+          minimum: 1
+          example: 3
+        retainedCount:
+          type: integer
+          minimum: 1
+          description: Number of retained revisions, bounded by the configured retention limit (10 by default).
+          example: 3
+        versions:
+          type: array
+          minItems: 1
+          description: Retained versions in newest-first order.
+          items:
+            $ref: "#/components/schemas/PayloadResponseVersionSummary"
+    PayloadResponseVersionSummary:
+      type: object
+      additionalProperties: false
+      required:
+        - revision
+        - current
+      properties:
+        revision:
+          type: integer
+          format: int64
+          minimum: 1
+          example: 3
+        current:
+          type: boolean
+          description: Whether this is the newest revision used by the active response catalog.
+          example: true
     ResponseSetDocument:
       type: object
       additionalProperties: false

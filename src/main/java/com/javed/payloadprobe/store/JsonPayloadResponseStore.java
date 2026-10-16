@@ -1,9 +1,12 @@
 package com.javed.payloadprobe.store;
 
+import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.javed.payloadprobe.config.PayloadProbeProperties;
+import com.javed.payloadprobe.config.PayloadResponseHistoryProperties;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -15,12 +18,14 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.regex.Pattern;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Repository;
@@ -33,9 +38,11 @@ public class JsonPayloadResponseStore implements PayloadResponseStore {
     static final String MISSES_METRIC = "payloadprobe.response.misses";
     static final String WRITES_METRIC = "payloadprobe.response.writes";
 
-    private static final TypeReference<LinkedHashMap<String, String>> RESPONSE_MAP =
+    private static final int STORE_VERSION = 2;
+    private static final TypeReference<LinkedHashMap<String, String>> LEGACY_RESPONSE_MAP =
             new TypeReference<>() {
             };
+    private static final Pattern KEY_PATTERN = Pattern.compile("[A-Za-z0-9._-]{1,120}");
     private static final String OPERATION_TAG = "operation";
     private static final String OUTCOME_TAG = "outcome";
     private static final String SUCCESS_OUTCOME = "success";
@@ -43,6 +50,7 @@ public class JsonPayloadResponseStore implements PayloadResponseStore {
 
     private final ObjectMapper objectMapper;
     private final PayloadProbeProperties properties;
+    private final PayloadResponseHistoryProperties historyProperties;
     private final Counter reads;
     private final Counter misses;
     private final Map<WriteOperation, Counter> successfulWrites;
@@ -50,24 +58,35 @@ public class JsonPayloadResponseStore implements PayloadResponseStore {
     private final AtomicFileMover atomicFileMover;
     private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
     private Path storePath;
-    private LinkedHashMap<String, String> cache = new LinkedHashMap<>();
+    private LinkedHashMap<String, ResponseHistory> cache = new LinkedHashMap<>();
 
     @Autowired
     public JsonPayloadResponseStore(
             ObjectMapper objectMapper,
             PayloadProbeProperties properties,
+            PayloadResponseHistoryProperties historyProperties,
             MeterRegistry meterRegistry) {
-        this(objectMapper, properties, meterRegistry, JsonPayloadResponseStore::moveAtomically);
+        this(
+                objectMapper,
+                properties,
+                historyProperties,
+                meterRegistry,
+                JsonPayloadResponseStore::moveAtomically);
     }
 
     JsonPayloadResponseStore(
             ObjectMapper objectMapper,
             PayloadProbeProperties properties,
+            PayloadResponseHistoryProperties historyProperties,
             MeterRegistry meterRegistry,
             AtomicFileMover atomicFileMover) {
-        this.objectMapper = objectMapper.copy().enable(SerializationFeature.INDENT_OUTPUT);
+        this.objectMapper = objectMapper.copy()
+                .enable(SerializationFeature.INDENT_OUTPUT)
+                .enable(JsonParser.Feature.STRICT_DUPLICATE_DETECTION);
         this.properties = properties;
+        this.historyProperties = historyProperties;
         this.atomicFileMover = atomicFileMover;
+        validateHistoryLimit();
         this.reads = Counter.builder(READS_METRIC)
                 .description("Completed response lookup attempts.")
                 .register(meterRegistry);
@@ -92,7 +111,11 @@ public class JsonPayloadResponseStore implements PayloadResponseStore {
         if (Files.notExists(storePath)) {
             seedStore();
         }
-        cache = readStore();
+        LoadResult loaded = readStore();
+        if (loaded.requiresRewrite()) {
+            writeStoreAtomically(loaded.responses());
+        }
+        cache = loaded.responses();
     }
 
     @Override
@@ -112,7 +135,8 @@ public class JsonPayloadResponseStore implements PayloadResponseStore {
         Optional<String> response;
         lock.readLock().lock();
         try {
-            response = Optional.ofNullable(cache.get(key));
+            ResponseHistory history = cache.get(key);
+            response = history == null ? Optional.empty() : Optional.of(history.currentXml());
         } finally {
             lock.readLock().unlock();
         }
@@ -127,7 +151,25 @@ public class JsonPayloadResponseStore implements PayloadResponseStore {
     public Map<String, String> snapshot() {
         lock.readLock().lock();
         try {
-            return new LinkedHashMap<>(cache);
+            LinkedHashMap<String, String> snapshot = new LinkedHashMap<>();
+            cache.forEach((key, history) -> snapshot.put(key, history.currentXml()));
+            return snapshot;
+        } finally {
+            lock.readLock().unlock();
+        }
+    }
+
+    @Override
+    public Optional<List<PayloadResponseRevision>> findRevisions(String key) {
+        lock.readLock().lock();
+        try {
+            ResponseHistory history = cache.get(key);
+            if (history == null) {
+                return Optional.empty();
+            }
+            ArrayList<PayloadResponseRevision> newestFirst = new ArrayList<>(history.revisions());
+            Collections.reverse(newestFirst);
+            return Optional.of(List.copyOf(newestFirst));
         } finally {
             lock.readLock().unlock();
         }
@@ -141,8 +183,10 @@ public class JsonPayloadResponseStore implements PayloadResponseStore {
             if (cache.containsKey(key)) {
                 created = false;
             } else {
-                cache.put(key, xmlInput);
-                writeStore(cache);
+                LinkedHashMap<String, ResponseHistory> candidate = copy(cache);
+                candidate.put(key, ResponseHistory.first(xmlInput));
+                writeStoreAtomically(candidate);
+                cache = candidate;
                 created = true;
             }
         } finally {
@@ -157,11 +201,16 @@ public class JsonPayloadResponseStore implements PayloadResponseStore {
         boolean updated;
         lock.writeLock().lock();
         try {
-            if (!cache.containsKey(key)) {
+            ResponseHistory current = cache.get(key);
+            if (current == null) {
                 updated = false;
             } else {
-                cache.put(key, xmlInput);
-                writeStore(cache);
+                LinkedHashMap<String, ResponseHistory> candidate = copy(cache);
+                candidate.put(
+                        key,
+                        current.append(xmlInput, historyProperties.getMaxRevisionsPerResponse()));
+                writeStoreAtomically(candidate);
+                cache = candidate;
                 updated = true;
             }
         } finally {
@@ -179,8 +228,10 @@ public class JsonPayloadResponseStore implements PayloadResponseStore {
             if (!cache.containsKey(key)) {
                 deleted = false;
             } else {
-                cache.remove(key);
-                writeStore(cache);
+                LinkedHashMap<String, ResponseHistory> candidate = copy(cache);
+                candidate.remove(key);
+                writeStoreAtomically(candidate);
+                cache = candidate;
                 deleted = true;
             }
         } finally {
@@ -197,8 +248,8 @@ public class JsonPayloadResponseStore implements PayloadResponseStore {
             if (responses.keySet().stream().anyMatch(cache::containsKey)) {
                 return false;
             }
-            LinkedHashMap<String, String> candidate = new LinkedHashMap<>(cache);
-            candidate.putAll(responses);
+            LinkedHashMap<String, ResponseHistory> candidate = copy(cache);
+            responses.forEach((key, xml) -> candidate.put(key, ResponseHistory.first(xml)));
             writeStoreAtomically(candidate);
             cache = candidate;
             return true;
@@ -246,40 +297,106 @@ public class JsonPayloadResponseStore implements PayloadResponseStore {
         Files.writeString(storePath, "{}", StandardCharsets.UTF_8);
     }
 
-    private LinkedHashMap<String, String> readStore() throws IOException {
+    private LoadResult readStore() throws IOException {
         if (Files.size(storePath) == 0) {
-            return new LinkedHashMap<>();
+            return new LoadResult(new LinkedHashMap<>(), true);
         }
-        return objectMapper.readValue(storePath.toFile(), RESPONSE_MAP);
+        JsonNode root = objectMapper.readTree(storePath.toFile());
+        if (looksVersioned(root)) {
+            return readVersionedStore(root);
+        }
+        return readLegacyStore(root);
     }
 
-    private void writeStore(Map<String, String> responses) {
+    private boolean looksVersioned(JsonNode root) {
+        if (root == null || !root.isObject()) {
+            return false;
+        }
+        JsonNode version = root.get("version");
+        JsonNode responses = root.get("responses");
+        return (version != null && !version.isTextual())
+                || (responses != null && !responses.isTextual());
+    }
+
+    private LoadResult readLegacyStore(JsonNode root) {
+        if (root == null || !root.isObject()) {
+            throw invalidStore();
+        }
+        LinkedHashMap<String, String> legacy;
         try {
-            objectMapper.writeValue(storePath.toFile(), responses);
-        } catch (IOException e) {
-            throw new IllegalStateException("Failed to persist XML response store at " + storePath, e);
+            legacy = objectMapper.convertValue(root, LEGACY_RESPONSE_MAP);
+        } catch (IllegalArgumentException exception) {
+            throw invalidStore(exception);
         }
+        LinkedHashMap<String, ResponseHistory> migrated = new LinkedHashMap<>();
+        legacy.forEach((key, xml) -> {
+            validateKeyAndXml(key, xml);
+            migrated.put(key, ResponseHistory.first(xml));
+        });
+        return new LoadResult(canonicalCopy(migrated), true);
     }
 
-    private void writeStoreAtomically(Map<String, String> responses) {
+    private LoadResult readVersionedStore(JsonNode root) throws IOException {
+        ResponseStoreFile file = objectMapper.treeToValue(root, ResponseStoreFile.class);
+        if (file == null || file.version() != STORE_VERSION || file.responses() == null) {
+            throw invalidStore();
+        }
+        boolean pruned = false;
+        LinkedHashMap<String, ResponseHistory> loaded = new LinkedHashMap<>();
+        for (StoredResponse response : file.responses()) {
+            if (response == null
+                    || response.revisions() == null
+                    || response.revisions().isEmpty()
+                    || response.revisions().get(0) == null) {
+                throw invalidStore();
+            }
+            validateKeyAndXml(response.key(), response.revisions().get(0).xml());
+            ArrayList<PayloadResponseRevision> revisions = new ArrayList<>();
+            long previousRevision = 0;
+            for (StoredRevision revision : response.revisions()) {
+                if (revision == null
+                        || revision.revision() <= previousRevision
+                        || revision.xml() == null) {
+                    throw invalidStore();
+                }
+                revisions.add(new PayloadResponseRevision(revision.revision(), revision.xml()));
+                previousRevision = revision.revision();
+            }
+            int limit = historyProperties.getMaxRevisionsPerResponse();
+            if (revisions.size() > limit) {
+                revisions = new ArrayList<>(revisions.subList(revisions.size() - limit, revisions.size()));
+                pruned = true;
+            }
+            if (loaded.putIfAbsent(response.key(), new ResponseHistory(revisions)) != null) {
+                throw invalidStore();
+            }
+        }
+        return new LoadResult(canonicalCopy(loaded), pruned);
+    }
+
+    private void writeStoreAtomically(Map<String, ResponseHistory> responses) {
         Path temporaryPath = null;
         try {
             temporaryPath = Files.createTempFile(
                     storePath.getParent(),
                     storePath.getFileName().toString() + ".",
                     ".tmp");
-            objectMapper.writeValue(temporaryPath.toFile(), responses);
+            List<StoredResponse> storedResponses = responses.entrySet().stream()
+                    .sorted(Map.Entry.comparingByKey())
+                    .map(entry -> new StoredResponse(
+                            entry.getKey(),
+                            entry.getValue().revisions().stream()
+                                    .map(revision -> new StoredRevision(revision.revision(), revision.xml()))
+                                    .toList()))
+                    .toList();
+            objectMapper.writeValue(
+                    temporaryPath.toFile(),
+                    new ResponseStoreFile(STORE_VERSION, storedResponses));
             atomicFileMover.move(temporaryPath, storePath);
         } catch (IOException exception) {
             throw new IllegalStateException("Failed to persist XML response store.", exception);
         } finally {
-            if (temporaryPath != null) {
-                try {
-                    Files.deleteIfExists(temporaryPath);
-                } catch (IOException ignored) {
-                    // The catalog was either moved successfully or remains unchanged.
-                }
-            }
+            deleteFile(temporaryPath);
         }
     }
 
@@ -292,12 +409,46 @@ public class JsonPayloadResponseStore implements PayloadResponseStore {
             atomicFileMover.move(probeSource, probeTarget);
         } catch (IOException exception) {
             throw new IllegalStateException(
-                    "PayloadProbe response imports require atomic file moves in the store directory.",
+                    "PayloadProbe response storage requires atomic file moves in the store directory.",
                     exception);
         } finally {
-            deleteProbeFile(probeSource);
-            deleteProbeFile(probeTarget);
+            deleteFile(probeSource);
+            deleteFile(probeTarget);
         }
+    }
+
+    private void validateHistoryLimit() {
+        int limit = historyProperties.getMaxRevisionsPerResponse();
+        if (limit < 1 || limit > 1000) {
+            throw new IllegalArgumentException("Response history limit must be between 1 and 1000");
+        }
+    }
+
+    private static void validateKeyAndXml(String key, String xml) {
+        if (key == null || !KEY_PATTERN.matcher(key).matches() || xml == null) {
+            throw invalidStore();
+        }
+    }
+
+    private static LinkedHashMap<String, ResponseHistory> copy(Map<String, ResponseHistory> source) {
+        return new LinkedHashMap<>(source);
+    }
+
+    private static LinkedHashMap<String, ResponseHistory> canonicalCopy(
+            Map<String, ResponseHistory> source) {
+        LinkedHashMap<String, ResponseHistory> canonical = new LinkedHashMap<>();
+        source.entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .forEach(entry -> canonical.put(entry.getKey(), entry.getValue()));
+        return canonical;
+    }
+
+    private static IllegalStateException invalidStore() {
+        return new IllegalStateException("XML response store is invalid.");
+    }
+
+    private static IllegalStateException invalidStore(Exception cause) {
+        return new IllegalStateException("XML response store is invalid.", cause);
     }
 
     private static void moveAtomically(Path source, Path target) throws IOException {
@@ -308,14 +459,56 @@ public class JsonPayloadResponseStore implements PayloadResponseStore {
                 StandardCopyOption.REPLACE_EXISTING);
     }
 
-    private static void deleteProbeFile(Path path) {
+    private static void deleteFile(Path path) {
         if (path == null) {
             return;
         }
         try {
             Files.deleteIfExists(path);
         } catch (IOException ignored) {
-            // A failed startup already reports the unsupported storage boundary.
+            // Failed persistence or startup already reports the durable boundary.
+        }
+    }
+
+    record ResponseStoreFile(int version, List<StoredResponse> responses) {
+    }
+
+    record StoredResponse(String key, List<StoredRevision> revisions) {
+    }
+
+    record StoredRevision(long revision, String xml) {
+    }
+
+    private record LoadResult(
+            LinkedHashMap<String, ResponseHistory> responses,
+            boolean requiresRewrite) {
+    }
+
+    private record ResponseHistory(List<PayloadResponseRevision> revisions) {
+
+        private ResponseHistory {
+            revisions = List.copyOf(revisions);
+        }
+
+        private static ResponseHistory first(String xml) {
+            return new ResponseHistory(List.of(new PayloadResponseRevision(1, xml)));
+        }
+
+        private String currentXml() {
+            return revisions.get(revisions.size() - 1).xml();
+        }
+
+        private ResponseHistory append(String xml, int limit) {
+            PayloadResponseRevision current = revisions.get(revisions.size() - 1);
+            if (current.revision() == Long.MAX_VALUE) {
+                throw new IllegalStateException("Response revision number is exhausted.");
+            }
+            ArrayList<PayloadResponseRevision> updated = new ArrayList<>(revisions);
+            updated.add(new PayloadResponseRevision(current.revision() + 1, xml));
+            if (updated.size() > limit) {
+                updated = new ArrayList<>(updated.subList(updated.size() - limit, updated.size()));
+            }
+            return new ResponseHistory(updated);
         }
     }
 

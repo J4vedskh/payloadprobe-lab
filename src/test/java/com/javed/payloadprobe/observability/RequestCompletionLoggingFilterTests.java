@@ -156,6 +156,31 @@ class RequestCompletionLoggingFilterTests {
     }
 
     @Test
+    void logsTheResponseVersionTemplateWithoutLoggingKeyOrRevision() throws Exception {
+        MockHttpServletRequest request = sensitiveRequest(
+                "GET",
+                "/api/responses/" + PATH_SECRET + "/versions/42");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, (servletRequest, servletResponse) -> {
+            servletRequest.setAttribute(
+                    HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE,
+                    "/api/responses/{key}/versions/{revision}");
+            ((HttpServletResponse) servletResponse).setStatus(200);
+        });
+
+        ILoggingEvent event = onlyEvent();
+        assertThat(fields(event))
+                .containsEntry("method", "GET")
+                .containsEntry("route", "/api/responses/{key}/versions/{revision}")
+                .containsEntry("status", 200)
+                .containsEntry("outcome", "success")
+                .hasSize(6);
+        assertSafe(event);
+        assertThat(event.getFormattedMessage() + fields(event)).doesNotContain("42");
+    }
+
+    @Test
     void collapsesUnknownRoutesAndMethodsToOther() throws Exception {
         MockHttpServletRequest request = sensitiveRequest("TRACE", "/unknown/" + PATH_SECRET);
         MockHttpServletResponse response = new MockHttpServletResponse();

@@ -12,6 +12,8 @@ public interface PayloadResponseStore {
 
     Map<String, String> snapshot();
 
+    Optional<List<PayloadResponseRevision>> findRevisions(String key);
+
     boolean create(String key, String xmlInput);
 
     boolean update(String key, String xmlInput);

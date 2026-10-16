@@ -1,6 +1,7 @@
 package com.javed.payloadprobe.api;
 
 import com.javed.payloadprobe.service.DefaultPayloads;
+import com.javed.payloadprobe.store.PayloadResponseRevision;
 import com.javed.payloadprobe.store.PayloadResponseStore;
 import jakarta.validation.constraints.Pattern;
 import java.util.List;
@@ -41,6 +42,54 @@ public class PayloadResponsesController {
         return store.findByKey(key)
                 .map(PayloadResponsesController::xmlResponse)
                 .orElseGet(() -> messageResponse(HttpStatus.NOT_FOUND, "No XML response found for key: " + key));
+    }
+
+    @GetMapping(value = "/{key}/versions", produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<?> listResponseVersions(
+            @PathVariable @Pattern(regexp = "[A-Za-z0-9._-]{1,120}") String key) {
+        return store.findRevisions(key)
+                .<ResponseEntity<?>>map(revisions -> {
+                    long currentRevision = revisions.get(0).revision();
+                    List<PayloadResponseVersionSummary> versions = revisions.stream()
+                            .map(revision -> new PayloadResponseVersionSummary(
+                                    revision.revision(),
+                                    revision.revision() == currentRevision))
+                            .toList();
+                    return ResponseEntity.ok(new PayloadResponseVersionHistory(
+                            key,
+                            currentRevision,
+                            versions.size(),
+                            versions));
+                })
+                .orElseGet(() -> messageResponse(
+                        HttpStatus.NOT_FOUND,
+                        "No XML response found for key: " + key));
+    }
+
+    @GetMapping(
+            value = "/{key}/versions/{revision}",
+            produces = {MediaType.APPLICATION_XML_VALUE, MediaType.TEXT_XML_VALUE})
+    public ResponseEntity<?> fetchResponseVersion(
+            @PathVariable @Pattern(regexp = "[A-Za-z0-9._-]{1,120}") String key,
+            @PathVariable String revision) {
+        Long parsedRevision = parseRevision(revision);
+        if (parsedRevision == null) {
+            return messageResponse(
+                    HttpStatus.BAD_REQUEST,
+                    "Invalid response revision. Use a positive whole number.");
+        }
+        return store.findRevisions(key)
+                .<ResponseEntity<?>>map(revisions -> revisions.stream()
+                        .filter(candidate -> candidate.revision() == parsedRevision)
+                        .map(PayloadResponseRevision::xml)
+                        .map(PayloadResponsesController::xmlResponse)
+                        .findFirst()
+                        .orElseGet(() -> messageResponse(
+                                HttpStatus.NOT_FOUND,
+                                "No retained XML response found for revision.")))
+                .orElseGet(() -> messageResponse(
+                        HttpStatus.NOT_FOUND,
+                        "No XML response found for key: " + key));
     }
 
     @PostMapping(
@@ -100,5 +149,17 @@ public class PayloadResponsesController {
         return ResponseEntity.status(status)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body("{\"message\":\"" + message.replace("\"", "\\\"") + "\"}");
+    }
+
+    private static Long parseRevision(String revision) {
+        if (revision == null || !revision.matches("[1-9][0-9]{0,18}")) {
+            return null;
+        }
+        try {
+            long parsed = Long.parseLong(revision);
+            return parsed > 0 ? parsed : null;
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
     }
 }

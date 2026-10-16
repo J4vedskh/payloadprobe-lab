@@ -25,6 +25,8 @@ public final class RequestCompletionLoggingFilter extends OncePerRequestFilter {
     private static final Set<String> SAFE_ROUTE_TEMPLATES = Set.of(
             "/api/responses",
             "/api/responses/{key}",
+            "/api/responses/{key}/versions",
+            "/api/responses/{key}/versions/{revision}",
             "/api/responses/default",
             "/api/response-sets",
             "/api/scenarios",
