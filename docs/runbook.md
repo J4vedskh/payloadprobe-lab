@@ -50,9 +50,7 @@ curl -X PUT http://localhost:8080/api/responses/openTest \
 
 Pruned revisions return `404`. Deleting a response removes all revisions; a
 later recreation of the same key begins at revision `1`. The read routes are
-safe to expose only according to your normal data policy; all routes that
-create, update, import, or delete data remain unauthenticated and must stay
-behind trusted external access controls.
+safe to expose only according to your normal data policy.
 
 On startup, a legacy flat response map is migrated to the versioned response
 store in one atomic file replacement. Back up the data file before upgrading.
@@ -106,8 +104,8 @@ The import is additive and atomic. A `409` means one or more submitted keys
 already exist; no entries were imported. A `400` means the complete JSON
 document, including every XML entry, must be corrected before retrying. The
 default ceilings are 100 entries, 1,048,576 raw JSON bytes, and 262,144 UTF-8
-bytes per XML value. The import endpoint is mutable and unauthenticated: do
-not expose it outside trusted external access controls.
+bytes per XML value. When optional write authentication is enabled, imports
+require the Bearer header described below.
 
 PayloadProbe checks atomic-move support in the configured store directory at
 startup. If startup reports that atomic moves are unavailable, move
@@ -167,8 +165,41 @@ per write. Set `PAYLOADPROBE_SCENARIOS_PATH`,
 `PAYLOADPROBE_SCENARIO_MAX_RESPONSE_KEYS`, or
 `PAYLOADPROBE_SCENARIO_MAX_DOCUMENT_BYTES` before startup to change those
 limits. The scenario store also requires atomic rename support in its parent
-directory. All mutable scenario routes are unauthenticated and must remain
-behind trusted external access controls.
+directory.
+
+## Optional Write Authentication
+
+Write authentication is off by default. To require a token, configure both
+variables before startup:
+
+```bash
+set PAYLOADPROBE_WRITE_AUTH_ENABLED=true
+set PAYLOADPROBE_WRITE_AUTH_BEARER_TOKEN=replace-with-a-16-to-256-character-token
+mvn spring-boot:run
+```
+
+The token must be 16 to 256 characters, using letters, numbers, `.`, `_`,
+`~`, `+`, `/`, `=`, or `-`. Send exactly one matching header with protected
+writes:
+
+```bash
+curl -X PUT http://localhost:8080/api/responses/openTest \
+  -H "Authorization: Bearer replace-with-a-16-to-256-character-token" \
+  -H "Content-Type: application/xml" \
+  -d "<response><status>updated</status></response>"
+```
+
+The protected routes are modern response `POST`, `PUT`, and `DELETE`;
+response-set `POST`; scenario `PUT` and `DELETE`; and legacy `/add`, `/update`,
+and `/delete`: exactly nine routes. All `GET` routes, `POST /fetch/{key}`,
+`GET|POST /default`, and `POST /api/responses/default` remain public.
+
+Missing, malformed, duplicate, or wrong headers return `401` with
+`{"message":"Write authentication required."}`, `WWW-Authenticate`, and
+`Cache-Control: no-store`. Do not put the token in shell history, tickets, or
+logs. The service does not log it, but TLS and network access controls are
+still required. This shared token does not identify users, define roles, or
+create an audit trail.
 
 ## Request Completion Logs
 

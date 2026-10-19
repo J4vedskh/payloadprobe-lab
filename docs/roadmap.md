@@ -10,10 +10,11 @@
 - Add versioned response-set export and additive, atomic import.
 - Add named scenarios with ordered, validated response selections and portable resolution.
 - Add bounded response version history with retained XML reads.
+- Add optional Bearer authentication for exactly the nine write endpoints.
 
 ## Near Term
 
-- Add optional authentication for write endpoints.
+- Add a write audit trail for protected write attempts.
 
 ## Platform
 
@@ -29,4 +30,4 @@
 
 ## Product Depth
 
-- Define role-based access once write-endpoint authentication exists.
+- Evaluate per-user roles only if a deployment needs identities beyond the shared write token.

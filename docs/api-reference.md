@@ -33,6 +33,38 @@ selection of response keys for a repeatable test case without copying XML.
 
 Keys are limited to 1-120 letters, numbers, dots, underscores, or hyphens. Invalid keys return `400` with a JSON error body.
 
+## Write Authentication
+
+Write authentication is disabled by default. Enable it only by setting both
+`PAYLOADPROBE_WRITE_AUTH_ENABLED=true` and
+`PAYLOADPROBE_WRITE_AUTH_BEARER_TOKEN` before startup. The token must be 16 to
+256 characters from `A-Z`, `a-z`, `0-9`, `.`, `_`, `~`, `+`, `/`, `=`, and `-`.
+
+When enabled, exactly nine mutating routes require exactly one matching
+`Authorization: Bearer <token>` header:
+
+| API family | Protected routes |
+| --- | --- |
+| Modern responses | `POST`, `PUT`, and `DELETE /api/responses/{key}` |
+| Response sets | `POST /api/response-sets` |
+| Scenarios | `PUT` and `DELETE /api/scenarios/{name}` |
+| Legacy aliases | `POST /add/{key}`, `POST /update/{key}`, and `DELETE /delete/{key}` |
+
+All `GET` routes remain public. `POST /fetch/{key}`, `GET|POST /default`, and
+`POST /api/responses/default` also remain public.
+
+A missing, malformed, duplicated, or incorrect header returns `401`:
+
+```json
+{
+  "message": "Write authentication required."
+}
+```
+
+The response also includes `WWW-Authenticate` and `Cache-Control: no-store`.
+The shared token is not a per-user identity, role model, or audit trail. Use
+TLS and network access controls in every deployment; tokens are not logged.
+
 ## XML Request Validation
 
 Create and update requests use `application/xml`, `text/xml`, or `text/plain`.
@@ -96,9 +128,9 @@ if the key is later recreated, its history begins again at revision `1`.
 
 A missing response returns the normal response-key `404`. A missing or pruned
 revision returns `404`, and a revision that is not a positive whole number
-returns `400`. History endpoints are read-only, but `POST`, `PUT`, legacy
-updates, imports, and deletes remain unauthenticated mutable APIs. Keep them
-behind trusted external access controls.
+returns `400`. History endpoints are read-only. When optional write
+authentication is enabled, the mutating routes listed above require the Bearer
+header; otherwise they retain the local-development default of no auth.
 
 ## Response Sets
 
@@ -150,9 +182,8 @@ use one fixed `message` field:
 
 Configure the two response-set limits with
 `PAYLOADPROBE_RESPONSE_SET_MAX_ENTRIES` and
-`PAYLOADPROBE_RESPONSE_SET_MAX_DOCUMENT_BYTES`. The application has no
-authentication, so keep imports and all mutable routes behind trusted external
-access controls.
+`PAYLOADPROBE_RESPONSE_SET_MAX_DOCUMENT_BYTES`. When optional write
+authentication is enabled, imports require the Bearer header described above.
 
 ## Named Scenarios
 
@@ -225,9 +256,9 @@ replacement in the same directory. Defaults are 100 scenarios, 100 response
 keys per scenario, and 65,536 raw JSON bytes. Configure them with
 `PAYLOADPROBE_SCENARIOS_PATH`, `PAYLOADPROBE_SCENARIO_MAX_SCENARIOS`,
 `PAYLOADPROBE_SCENARIO_MAX_RESPONSE_KEYS`, and
-`PAYLOADPROBE_SCENARIO_MAX_DOCUMENT_BYTES`. The service has no authentication:
-keep scenario writes and deletes, as well as all other mutable APIs, behind
-trusted external access controls.
+`PAYLOADPROBE_SCENARIO_MAX_DOCUMENT_BYTES`. When optional write authentication
+is enabled, scenario writes and deletes require the Bearer header described
+above.
 
 ## Legacy Aliases
 
@@ -247,7 +278,9 @@ Legacy aliases use the same key and body validation rules as the modern API.
 For compatibility, a missing legacy `GET|POST /fetch/{key}` still returns
 `200 application/xml` with a failure payload. The modern fetch route returns a
 JSON `404` instead. A successful legacy `/update/{key}` appends a response
-revision exactly like the modern `PUT` route.
+revision exactly like the modern `PUT` route. Only legacy `/add`, `/update`,
+and `/delete` are protected when optional write authentication is enabled;
+legacy fetch and default routes remain public.
 
 ## OpenAPI
 

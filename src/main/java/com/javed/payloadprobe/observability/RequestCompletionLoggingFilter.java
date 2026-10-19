@@ -10,11 +10,14 @@ import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.spi.LoggingEventBuilder;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 import org.springframework.web.servlet.HandlerMapping;
 
 @Component
+@Order(Ordered.HIGHEST_PRECEDENCE)
 public final class RequestCompletionLoggingFilter extends OncePerRequestFilter {
 
     static final String EVENT_NAME = "http_request_completed";

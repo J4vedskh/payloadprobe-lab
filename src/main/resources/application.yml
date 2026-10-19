@@ -20,6 +20,9 @@ payloadprobe:
     max-document-bytes: ${PAYLOADPROBE_RESPONSE_SET_MAX_DOCUMENT_BYTES:1048576}
   response-history:
     max-revisions-per-response: ${PAYLOADPROBE_RESPONSE_HISTORY_MAX_REVISIONS_PER_RESPONSE:10}
+  write-auth:
+    enabled: ${PAYLOADPROBE_WRITE_AUTH_ENABLED:false}
+    bearer-token: ${PAYLOADPROBE_WRITE_AUTH_BEARER_TOKEN:}
   scenarios:
     path: ${PAYLOADPROBE_SCENARIOS_PATH:data/scenarios.json}
     max-scenarios: ${PAYLOADPROBE_SCENARIO_MAX_SCENARIOS:100}

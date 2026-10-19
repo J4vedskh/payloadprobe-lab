@@ -1,10 +1,14 @@
 openapi: 3.0.3
 info:
   title: PayloadProbe Lab API
-  version: 0.6.0
+  version: 0.7.0
   description: >-
     API for managing named XML mock responses. Write endpoints accept non-empty,
     well-formed XML documents or fragments and preserve accepted payload text.
+    Write Bearer authentication is disabled by default. Set
+    PAYLOADPROBE_WRITE_AUTH_ENABLED=true and provide
+    PAYLOADPROBE_WRITE_AUTH_BEARER_TOKEN to require the documented Bearer token
+    on write operations; read operations remain unauthenticated.
 servers:
   - url: https://j4vedskh.github.io/payloadprobe-lab
     description: Documentation site
@@ -39,6 +43,9 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/ResponseSetDocument"
+      security:
+        - {}
+        - WriteBearerAuth: []
       responses:
         "201":
           description: Number of newly imported responses
@@ -54,6 +61,8 @@ paths:
           $ref: "#/components/responses/ResponseSetTooLarge"
         "415":
           $ref: "#/components/responses/UnsupportedJsonMediaType"
+        "401":
+          $ref: "#/components/responses/WriteAuthenticationRequired"
         "503":
           $ref: "#/components/responses/ResponseSetPersistenceFailure"
   /api/scenarios:
@@ -105,6 +114,9 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/PayloadScenarioRequest"
+      security:
+        - {}
+        - WriteBearerAuth: []
       responses:
         "200":
           description: Existing scenario replaced
@@ -130,10 +142,15 @@ paths:
           $ref: "#/components/responses/ScenarioTooLarge"
         "415":
           $ref: "#/components/responses/UnsupportedJsonMediaType"
+        "401":
+          $ref: "#/components/responses/WriteAuthenticationRequired"
         "503":
           $ref: "#/components/responses/ScenarioPersistenceFailure"
     delete:
       summary: Delete a named scenario
+      security:
+        - {}
+        - WriteBearerAuth: []
       responses:
         "204":
           description: Scenario deleted
@@ -141,6 +158,8 @@ paths:
           $ref: "#/components/responses/InvalidScenarioDocument"
         "404":
           $ref: "#/components/responses/ScenarioNotFound"
+        "401":
+          $ref: "#/components/responses/WriteAuthenticationRequired"
         "503":
           $ref: "#/components/responses/ScenarioPersistenceFailure"
   /api/responses:
@@ -243,6 +262,9 @@ paths:
       summary: Create XML response
       requestBody:
         $ref: "#/components/requestBodies/XmlPayload"
+      security:
+        - {}
+        - WriteBearerAuth: []
       responses:
         "201":
           $ref: "#/components/responses/MessageResult"
@@ -252,10 +274,15 @@ paths:
           $ref: "#/components/responses/InvalidMutationRequest"
         "415":
           $ref: "#/components/responses/UnsupportedMediaType"
+        "401":
+          $ref: "#/components/responses/WriteAuthenticationRequired"
     put:
       summary: Update XML response
       requestBody:
         $ref: "#/components/requestBodies/XmlPayload"
+      security:
+        - {}
+        - WriteBearerAuth: []
       responses:
         "200":
           $ref: "#/components/responses/MessageResult"
@@ -265,8 +292,13 @@ paths:
           $ref: "#/components/responses/InvalidMutationRequest"
         "415":
           $ref: "#/components/responses/UnsupportedMediaType"
+        "401":
+          $ref: "#/components/responses/WriteAuthenticationRequired"
     delete:
       summary: Delete XML response
+      security:
+        - {}
+        - WriteBearerAuth: []
       responses:
         "200":
           $ref: "#/components/responses/MessageResult"
@@ -274,6 +306,8 @@ paths:
           $ref: "#/components/responses/NotFound"
         "400":
           $ref: "#/components/responses/InvalidKey"
+        "401":
+          $ref: "#/components/responses/WriteAuthenticationRequired"
   /api/responses/default:
     post:
       summary: Return default XML sample
@@ -351,6 +385,9 @@ paths:
       summary: Legacy create alias
       requestBody:
         $ref: "#/components/requestBodies/XmlPayload"
+      security:
+        - {}
+        - WriteBearerAuth: []
       responses:
         "201":
           $ref: "#/components/responses/MessageResult"
@@ -360,6 +397,8 @@ paths:
           $ref: "#/components/responses/InvalidMutationRequest"
         "415":
           $ref: "#/components/responses/UnsupportedMediaType"
+        "401":
+          $ref: "#/components/responses/WriteAuthenticationRequired"
   /update/{key}:
     parameters:
       - $ref: "#/components/parameters/Key"
@@ -367,6 +406,9 @@ paths:
       summary: Legacy update alias
       requestBody:
         $ref: "#/components/requestBodies/XmlPayload"
+      security:
+        - {}
+        - WriteBearerAuth: []
       responses:
         "200":
           $ref: "#/components/responses/MessageResult"
@@ -376,11 +418,16 @@ paths:
           $ref: "#/components/responses/InvalidMutationRequest"
         "415":
           $ref: "#/components/responses/UnsupportedMediaType"
+        "401":
+          $ref: "#/components/responses/WriteAuthenticationRequired"
   /delete/{key}:
     parameters:
       - $ref: "#/components/parameters/Key"
     delete:
       summary: Legacy delete alias
+      security:
+        - {}
+        - WriteBearerAuth: []
       responses:
         "200":
           $ref: "#/components/responses/MessageResult"
@@ -388,6 +435,8 @@ paths:
           $ref: "#/components/responses/NotFound"
         "400":
           $ref: "#/components/responses/InvalidKey"
+        "401":
+          $ref: "#/components/responses/WriteAuthenticationRequired"
   /fetchAll:
     get:
       summary: Legacy list alias
@@ -424,6 +473,17 @@ paths:
         "200":
           description: Endpoint catalog
 components:
+  securitySchemes:
+    WriteBearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: opaque token
+      description: >-
+        Required only when PAYLOADPROBE_WRITE_AUTH_ENABLED=true. Supply the
+        token configured through PAYLOADPROBE_WRITE_AUTH_BEARER_TOKEN as one
+        Authorization: Bearer <token> header. Authentication is disabled by
+        default, so the same write operations accept requests without this
+        header until it is enabled.
   requestBodies:
     XmlPayload:
       required: true
@@ -442,6 +502,25 @@ components:
           schema:
             $ref: "#/components/schemas/XmlPayload"
   responses:
+    WriteAuthenticationRequired:
+      description: The enabled write-authentication policy rejected the request.
+      headers:
+        WWW-Authenticate:
+          description: Bearer authentication challenge for PayloadProbe write operations.
+          schema:
+            type: string
+          example: Bearer realm="PayloadProbe writes"
+        Cache-Control:
+          description: Prevents caching of the authentication failure response.
+          schema:
+            type: string
+          example: no-store
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/MessageResponse"
+          example:
+            message: Write authentication required.
     InvalidScenarioDocument:
       description: Invalid scenario name or JSON document
       content:
