@@ -16,12 +16,12 @@ must make real, verified improvements and avoid fake or misleading activity.
 
 | Theme | Example Improvements |
 | --- | --- |
-| Features | Response-set import/export, named scenarios, response version history, and optional write authentication complete |
+| Features | Response-set import/export, named scenarios, response version history, optional write authentication, and protected-write audit events complete |
 | Tests | controller tests, OpenAPI contract checks, persistence edge cases |
 | Docs | diagram refinements, API examples, runbook updates |
 | Platform | Docker image publishing, Helm chart, CI hardening |
 | Observability | metrics, structured logs, dashboard starters |
-| Security | write audit trail, dependency scanning |
+| Security | dependency review and scanning |
 
 ## Verification Standard
 

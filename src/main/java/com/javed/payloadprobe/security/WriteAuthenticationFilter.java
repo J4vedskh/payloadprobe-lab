@@ -19,18 +19,17 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 import org.springframework.web.servlet.HandlerMapping;
-import org.springframework.web.util.UrlPathHelper;
 
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE + 10)
 public final class WriteAuthenticationFilter extends OncePerRequestFilter {
 
     public static final String UNAUTHORIZED_MESSAGE = "Write authentication required.";
+    public static final String AUTHENTICATION_DECISION_ATTRIBUTE =
+            WriteAuthenticationFilter.class.getName() + ".authenticationDecision";
 
     private static final String BEARER_PREFIX = "Bearer ";
     private static final String WWW_AUTHENTICATE_VALUE = "Bearer realm=\"PayloadProbe writes\"";
-    private static final UrlPathHelper URL_PATH_HELPER = pathHelper();
-
     private final boolean enabled;
     private final byte[] expectedDigest;
     private final ObjectMapper objectMapper;
@@ -52,8 +51,19 @@ public final class WriteAuthenticationFilter extends OncePerRequestFilter {
             HttpServletRequest request,
             HttpServletResponse response,
             FilterChain filterChain) throws ServletException, IOException {
-        String routeTemplate = protectedRouteTemplate(request);
-        if (!enabled || routeTemplate == null || hasValidCredential(request)) {
+        String routeTemplate = ProtectedWriteRouteClassifier.classify(request);
+        if (routeTemplate == null) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
+        AuthenticationDecision decision = !enabled
+                ? AuthenticationDecision.NOT_REQUIRED
+                : hasValidCredential(request)
+                        ? AuthenticationDecision.ACCEPTED
+                        : AuthenticationDecision.REJECTED;
+        request.setAttribute(AUTHENTICATION_DECISION_ATTRIBUTE, decision);
+        if (decision != AuthenticationDecision.REJECTED) {
             filterChain.doFilter(request, response);
             return;
         }
@@ -93,74 +103,29 @@ public final class WriteAuthenticationFilter extends OncePerRequestFilter {
         return MessageDigest.isEqual(expectedDigest, digest(suppliedToken));
     }
 
-    static String protectedRouteTemplate(HttpServletRequest request) {
-        String path = applicationPath(request);
-        String method = request.getMethod();
-        if ("POST".equals(method)) {
-            if ("/api/response-sets".equals(path)) {
-                return "/api/response-sets";
-            }
-            if (singleSegment(path, "/api/responses/") && !"/api/responses/default".equals(path)) {
-                return "/api/responses/{key}";
-            }
-            if (singleSegment(path, "/add/")) {
-                return "/add/{key}";
-            }
-            if (singleSegment(path, "/update/")) {
-                return "/update/{key}";
-            }
-        }
-        if ("PUT".equals(method)) {
-            if (singleSegment(path, "/api/responses/")) {
-                return "/api/responses/{key}";
-            }
-            if (singleSegment(path, "/api/scenarios/")) {
-                return "/api/scenarios/{name}";
-            }
-        }
-        if ("DELETE".equals(method)) {
-            if (singleSegment(path, "/api/responses/")) {
-                return "/api/responses/{key}";
-            }
-            if (singleSegment(path, "/api/scenarios/")) {
-                return "/api/scenarios/{name}";
-            }
-            if (singleSegment(path, "/delete/")) {
-                return "/delete/{key}";
-            }
-        }
-        return null;
-    }
-
-    private static String applicationPath(HttpServletRequest request) {
-        String path = URL_PATH_HELPER.getPathWithinApplication(request);
-        if (path.length() > 1 && path.endsWith("/")) {
-            return path.substring(0, path.length() - 1);
-        }
-        return path;
-    }
-
-    private static UrlPathHelper pathHelper() {
-        UrlPathHelper pathHelper = new UrlPathHelper();
-        pathHelper.setRemoveSemicolonContent(true);
-        pathHelper.setUrlDecode(true);
-        return pathHelper;
-    }
-
-    private static boolean singleSegment(String path, String prefix) {
-        if (!path.startsWith(prefix)) {
-            return false;
-        }
-        String segment = path.substring(prefix.length());
-        return !segment.isEmpty() && !segment.contains("/");
-    }
-
     private static byte[] digest(String token) {
         try {
             return MessageDigest.getInstance("SHA-256")
                     .digest(token.getBytes(StandardCharsets.UTF_8));
         } catch (NoSuchAlgorithmException impossible) {
             throw new IllegalStateException("SHA-256 is unavailable.", impossible);
+        }
+    }
+
+    public enum AuthenticationDecision {
+        NOT_REQUIRED("not_required"),
+        ACCEPTED("accepted"),
+        REJECTED("rejected"),
+        UNDETERMINED("undetermined");
+
+        private final String value;
+
+        AuthenticationDecision(String value) {
+            this.value = value;
+        }
+
+        public String value() {
+            return value;
         }
     }
 }

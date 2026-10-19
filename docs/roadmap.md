@@ -11,10 +11,11 @@
 - Add named scenarios with ordered, validated response selections and portable resolution.
 - Add bounded response version history with retained XML reads.
 - Add optional Bearer authentication for exactly the nine write endpoints.
+- Add privacy-bounded structured audit events for protected write attempts.
 
 ## Near Term
 
-- Add a write audit trail for protected write attempts.
+- Review and update direct and transitive dependencies for security fixes.
 
 ## Platform
 

@@ -62,8 +62,20 @@ A missing, malformed, duplicated, or incorrect header returns `401`:
 ```
 
 The response also includes `WWW-Authenticate` and `Cache-Control: no-store`.
-The shared token is not a per-user identity, role model, or audit trail. Use
-TLS and network access controls in every deployment; tokens are not logged.
+The shared token is not a per-user identity or role model. Use TLS and network
+access controls in every deployment; tokens are not logged.
+
+Every attempt on one of the nine write routes produces one structured console audit
+event. The event uses `write.audit.completed` with the fixed event value
+`protected_write_completed`, and includes only `method`, a route template,
+`authentication`, `status`, and `outcome`. Authentication is one of
+`not_required`, `accepted`, `rejected`, or `undetermined`; outcome is one of
+`success`, `client_error`, `server_error`, or `other`. The event never contains
+keys, names, tokens, bodies, queries, headers, cookies, IP addresses, request
+IDs, file paths, exceptions, durations, or user identities. Public and read
+routes do not produce it. This is best-effort logging rather than a durable,
+tamper-proof, or compliance audit ledger; retention and access belong to the
+external log collector.
 
 ## XML Request Validation
 
@@ -122,8 +134,8 @@ revision. Configure a value from 1 through 1000 with
 `PAYLOADPROBE_RESPONSE_HISTORY_MAX_REVISIONS_PER_RESPONSE` before startup.
 
 There is deliberately no rollback endpoint. To promote an older retained XML,
-fetch it and send it to `PUT /api/responses/{key}`; that preserves the audit
-trail by appending a new revision. Deleting a response purges its full history;
+fetch it and send it to `PUT /api/responses/{key}`; that preserves revision
+history by appending a new revision. Deleting a response purges its full history;
 if the key is later recreated, its history begins again at revision `1`.
 
 A missing response returns the normal response-key `404`. A missing or pruned

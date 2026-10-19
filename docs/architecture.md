@@ -86,8 +86,25 @@ Authentication failures use a fixed `401` body, `WWW-Authenticate`, and
 `Cache-Control: no-store`; the request logging boundary never records tokens.
 
 This is a shared deployment secret, not user authentication. It provides no
-individual roles or write audit trail. Production deployments still need TLS
-and network access controls around the service.
+individual roles. Each attempt on one of the nine write routes emits one separate,
+privacy-bounded console audit event, but that event is best-effort logging, not
+a durable, tamper-proof, or compliance audit ledger. Production deployments
+still need TLS and network access controls around the service.
+
+## Write Audit Events
+
+Each attempt on exactly the nine write routes produces one
+`write.audit.completed` console event whose event value is
+`protected_write_completed`. It records only the request method, an allow-listed
+route template, authentication result, final status, and broad outcome. The
+authentication value is `not_required`, `accepted`, `rejected`, or
+`undetermined`; outcome is `success`, `client_error`, `server_error`, or
+`other`.
+
+The event does not contain a response key, scenario name, token, body, query,
+header, cookie, IP address, request ID, file path, exception, duration, or user
+identity. Public and read routes emit no audit event. The existing
+`request.completed` event remains separate and includes request duration.
 
 ## Component View
 
@@ -102,6 +119,9 @@ flowchart LR
     LegacyApi --> Store
     ModernApi --> RequestLog["Safe request completion log"]
     LegacyApi --> RequestLog
+    ModernApi --> WriteAudit["Protected write audit log"]
+    ScenarioApi --> WriteAudit
+    LegacyApi --> WriteAudit
     Store --> JsonFile["Versioned JSON file data/xmlResponses.json"]
     ScenarioStore --> ScenarioFile["JSON file data/scenarios.json"]
     Store --> Seed["Classpath seed xmlResponses.json"]

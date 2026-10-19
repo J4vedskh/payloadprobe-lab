@@ -29,7 +29,7 @@ class WriteAuthenticationFilterTests {
             request.setContextPath("/context");
         }
 
-        assertThat(WriteAuthenticationFilter.protectedRouteTemplate(request)).isEqualTo(expectedTemplate);
+        assertThat(ProtectedWriteRouteClassifier.classify(request)).isEqualTo(expectedTemplate);
     }
 
     @ParameterizedTest
@@ -37,7 +37,7 @@ class WriteAuthenticationFilterTests {
     void leavesReadAndUnknownRoutesPublic(String method, String path) {
         MockHttpServletRequest request = new MockHttpServletRequest(method, path);
 
-        assertThat(WriteAuthenticationFilter.protectedRouteTemplate(request)).isNull();
+        assertThat(ProtectedWriteRouteClassifier.classify(request)).isNull();
     }
 
     @Test
@@ -59,6 +59,8 @@ class WriteAuthenticationFilterTests {
             assertThat(response.getContentAsString())
                     .isEqualTo("{\"message\":\"Write authentication required.\"}")
                     .doesNotContain(TOKEN, credentialCase.secret);
+            assertThat(request.getAttribute(WriteAuthenticationFilter.AUTHENTICATION_DECISION_ATTRIBUTE))
+                    .isEqualTo(WriteAuthenticationFilter.AuthenticationDecision.REJECTED);
         }
     }
 
@@ -75,6 +77,8 @@ class WriteAuthenticationFilterTests {
         assertThat(invoked).isTrue();
         assertThat(response.getStatus()).isEqualTo(200);
         assertThat(response.getContentAsByteArray()).isEmpty();
+        assertThat(request.getAttribute(WriteAuthenticationFilter.AUTHENTICATION_DECISION_ATTRIBUTE))
+                .isEqualTo(WriteAuthenticationFilter.AuthenticationDecision.ACCEPTED);
     }
 
     @Test
@@ -88,6 +92,8 @@ class WriteAuthenticationFilterTests {
         filter.doFilter(request, response, (ignoredRequest, ignoredResponse) -> invoked.set(true));
 
         assertThat(invoked).isTrue();
+        assertThat(request.getAttribute(WriteAuthenticationFilter.AUTHENTICATION_DECISION_ATTRIBUTE))
+                .isEqualTo(WriteAuthenticationFilter.AuthenticationDecision.NOT_REQUIRED);
     }
 
     @Test

@@ -18,6 +18,7 @@ import ch.qos.logback.core.read.ListAppender;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.javed.payloadprobe.observability.RequestCompletionLoggingFilter;
+import com.javed.payloadprobe.observability.WriteAuditLoggingFilter;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -140,15 +141,19 @@ class PayloadProbeApplicationTests {
 
     @Test
     @ExtendWith(OutputCaptureExtension.class)
-    void emitsOneSafeStructuredCompletionEventForMappedRequests(CapturedOutput output) throws Exception {
+    void emitsSafeCompletionAndDisabledWriteAuditEvents(CapturedOutput output) throws Exception {
         String key = "logging-private-key-" + UUID.randomUUID();
         String bodySecret = "logging-body-secret";
         String querySecret = "logging-query-secret";
         String headerSecret = "logging-header-secret";
         Logger requestLogger = (Logger) LoggerFactory.getLogger(RequestCompletionLoggingFilter.class);
-        ListAppender<ILoggingEvent> appender = new ListAppender<>();
-        appender.start();
-        requestLogger.addAppender(appender);
+        Logger auditLogger = (Logger) LoggerFactory.getLogger(WriteAuditLoggingFilter.class);
+        ListAppender<ILoggingEvent> requestAppender = new ListAppender<>();
+        ListAppender<ILoggingEvent> auditAppender = new ListAppender<>();
+        requestAppender.start();
+        auditAppender.start();
+        requestLogger.addAppender(requestAppender);
+        auditLogger.addAppender(auditAppender);
 
         try {
             mockMvc.perform(post("/api/responses/{key}", key)
@@ -158,11 +163,13 @@ class PayloadProbeApplicationTests {
                             .content("<response><token>" + bodySecret + "</token></response>"))
                     .andExpect(status().isCreated());
         } finally {
-            requestLogger.detachAppender(appender);
-            appender.stop();
+            requestLogger.detachAppender(requestAppender);
+            auditLogger.detachAppender(auditAppender);
+            requestAppender.stop();
+            auditAppender.stop();
         }
 
-        assertThat(appender.list).singleElement().satisfies(event -> {
+        assertThat(requestAppender.list).singleElement().satisfies(event -> {
             assertThat(event.getLevel()).isEqualTo(Level.INFO);
             assertThat(event.getFormattedMessage()).isEqualTo("request.completed");
             assertThat(event.getKeyValuePairs())
@@ -171,6 +178,22 @@ class PayloadProbeApplicationTests {
                             org.assertj.core.groups.Tuple.tuple("event", "http_request_completed"),
                             org.assertj.core.groups.Tuple.tuple("method", "POST"),
                             org.assertj.core.groups.Tuple.tuple("route", "/api/responses/{key}"),
+                            org.assertj.core.groups.Tuple.tuple("status", 201),
+                            org.assertj.core.groups.Tuple.tuple("outcome", "success"));
+            assertThat(event.getThrowableProxy()).isNull();
+            assertThat(event.getFormattedMessage() + event.getKeyValuePairs())
+                    .doesNotContain(key, bodySecret, querySecret, headerSecret);
+        });
+        assertThat(auditAppender.list).singleElement().satisfies(event -> {
+            assertThat(event.getLevel()).isEqualTo(Level.INFO);
+            assertThat(event.getFormattedMessage()).isEqualTo("write.audit.completed");
+            assertThat(event.getKeyValuePairs())
+                    .extracting(pair -> pair.key, pair -> pair.value)
+                    .contains(
+                            org.assertj.core.groups.Tuple.tuple("event", "protected_write_completed"),
+                            org.assertj.core.groups.Tuple.tuple("method", "POST"),
+                            org.assertj.core.groups.Tuple.tuple("route", "/api/responses/{key}"),
+                            org.assertj.core.groups.Tuple.tuple("authentication", "not_required"),
                             org.assertj.core.groups.Tuple.tuple("status", 201),
                             org.assertj.core.groups.Tuple.tuple("outcome", "success"));
             assertThat(event.getThrowableProxy()).isNull();
