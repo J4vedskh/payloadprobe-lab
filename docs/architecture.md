@@ -40,9 +40,7 @@ not bypass the JSON document limit. Startup probes the catalog directory for
 atomic-move support and fails clearly if the filesystem cannot provide it.
 
 The import route is intentionally not an overwrite or synchronization API:
-it only creates missing keys. As with every mutable route, deployment must
-place it behind trusted external access controls because this application does
-not provide authentication.
+it only creates missing keys.
 
 ## Named scenarios
 
@@ -71,8 +69,25 @@ catalog snapshot and fails closed instead of returning partial XML.
 The scenario store uses the same atomic-move requirement as the response
 catalog, but a different file and lock. It is not a synchronization or backup
 mechanism; response-set export/import remains the portable catalog mechanism.
-Because the service has no authentication, deployments must keep mutable
-scenario routes behind trusted external access controls.
+
+## Optional write authentication
+
+Write authentication is disabled by default. When both
+`PAYLOADPROBE_WRITE_AUTH_ENABLED=true` and a valid
+`PAYLOADPROBE_WRITE_AUTH_BEARER_TOKEN` are configured, one request filter
+protects exactly nine mutators: modern response create, update, and delete;
+response-set import; scenario create/replace and delete; and legacy add,
+update, and delete. It requires exactly one matching `Authorization: Bearer`
+header before the controller or storage layer runs.
+
+The filter leaves all `GET` routes and the compatibility-safe POST reads
+(`POST /fetch/{key}`, `/default`, and `POST /api/responses/default`) public.
+Authentication failures use a fixed `401` body, `WWW-Authenticate`, and
+`Cache-Control: no-store`; the request logging boundary never records tokens.
+
+This is a shared deployment secret, not user authentication. It provides no
+individual roles or write audit trail. Production deployments still need TLS
+and network access controls around the service.
 
 ## Component View
 

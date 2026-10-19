@@ -3,6 +3,7 @@ package com.javed.payloadprobe;
 import com.javed.payloadprobe.config.PayloadProbeProperties;
 import com.javed.payloadprobe.config.PayloadResponseHistoryProperties;
 import com.javed.payloadprobe.config.PayloadScenarioProperties;
+import com.javed.payloadprobe.config.PayloadWriteAuthenticationProperties;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -11,7 +12,8 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 @EnableConfigurationProperties({
         PayloadProbeProperties.class,
         PayloadResponseHistoryProperties.class,
-        PayloadScenarioProperties.class
+        PayloadScenarioProperties.class,
+        PayloadWriteAuthenticationProperties.class
 })
 public class PayloadProbeApplication {
 

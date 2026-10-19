@@ -84,9 +84,8 @@ curl -X POST http://localhost:8080/api/response-sets \
 Response-set defaults are 100 entries and 1,048,576 raw JSON bytes. Change
 them with `PAYLOADPROBE_RESPONSE_SET_MAX_ENTRIES` and
 `PAYLOADPROBE_RESPONSE_SET_MAX_DOCUMENT_BYTES`. Each XML value remains limited
-to 262,144 UTF-8 bytes. The application currently has no authentication, so
-keep all write routes, including `POST /api/response-sets`, behind trusted
-external access controls.
+to 262,144 UTF-8 bytes. `POST /api/response-sets` is one of the optional
+protected write routes; see [Write authentication](#write-authentication).
 
 Save an ordered, reusable selection of existing response keys as a named
 scenario. Creating a new scenario returns `201`; writing the same name again
@@ -127,8 +126,7 @@ JSON bytes per scenario write. Change them with `PAYLOADPROBE_SCENARIOS_PATH`,
 `PAYLOADPROBE_SCENARIO_MAX_SCENARIOS`,
 `PAYLOADPROBE_SCENARIO_MAX_RESPONSE_KEYS`, and
 `PAYLOADPROBE_SCENARIO_MAX_DOCUMENT_BYTES`. Scenario writes and deletes are
-also unauthenticated mutable routes, so keep them behind trusted external
-access controls.
+optional protected write routes; see [Write authentication](#write-authentication).
 
 Override the writable store location:
 
@@ -140,8 +138,42 @@ mvn spring-boot:run
 On first startup after an upgrade, a legacy flat response map is converted to
 the current versioned single-file format through an atomic replacement. Keep a
 backup of the store before upgrading, and ensure the store directory supports
-atomic rename. The service has no authentication, so keep every mutable route
-behind trusted external access controls.
+atomic rename.
+
+## Write authentication
+
+Write authentication is disabled by default, so local development works
+without a token. To protect writes, set **both** variables before startup:
+
+```bash
+set PAYLOADPROBE_WRITE_AUTH_ENABLED=true
+set PAYLOADPROBE_WRITE_AUTH_BEARER_TOKEN=replace-with-a-16-to-256-character-token
+mvn spring-boot:run
+```
+
+The token must be 16 to 256 characters using only letters, numbers, `.`, `_`,
+`~`, `+`, `/`, `=`, or `-`. Send exactly one matching header on protected
+requests:
+
+```bash
+curl -X POST http://localhost:8080/api/responses/demo \
+  -H "Authorization: Bearer replace-with-a-16-to-256-character-token" \
+  -H "Content-Type: application/xml" \
+  -d "<response><status>success</status></response>"
+```
+
+When enabled, exactly these nine write routes require that header: modern
+response `POST`, `PUT`, and `DELETE`; response-set `POST`; scenario `PUT` and
+`DELETE`; and legacy `/add`, `/update`, and `/delete`. All `GET` routes, legacy
+`POST /fetch/{key}`, `/default`, and `POST /api/responses/default` remain
+public.
+
+A missing, malformed, duplicate, or incorrect authorization header returns
+`401` with `{"message":"Write authentication required."}`, a
+`WWW-Authenticate` header, and `Cache-Control: no-store`. Tokens are never
+written to request logs. This shared token is not per-user authentication,
+roles, or an audit trail: keep the service behind TLS and appropriate network
+access controls.
 
 ## Documentation
 

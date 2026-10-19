@@ -100,7 +100,7 @@ class JsonPayloadResponseStoreMetricsTests {
                         "alpha", "<replacement/>",
                         "gamma", "<gamma/>"))))
                 .isFalse();
-        assertThat(store.snapshot()).containsExactlyEntriesOf(Map.of(
+        assertThat(store.snapshot()).containsExactlyInAnyOrderEntriesOf(Map.of(
                 "alpha", "<alpha/>",
                 "beta", "<beta/>"));
         assertThat(Files.readString(storePath)).isEqualTo(fileBeforeConflict);
