@@ -171,9 +171,18 @@ public.
 A missing, malformed, duplicate, or incorrect authorization header returns
 `401` with `{"message":"Write authentication required."}`, a
 `WWW-Authenticate` header, and `Cache-Control: no-store`. Tokens are never
-written to request logs. This shared token is not per-user authentication,
-roles, or an audit trail: keep the service behind TLS and appropriate network
-access controls.
+written to request logs. This shared token is not per-user authentication or a
+role model: keep the service behind TLS and appropriate network access
+controls.
+
+Every attempt on one of the nine write routes also produces one structured
+console audit event. It records only the route template, HTTP method,
+authentication result, final status, and broad outcome. It never includes a
+response key, scenario name, token, payload, query, header, cookie, client
+identity, IP address, request ID, file path, exception, or duration. Public
+and read routes do not produce audit events. This is best-effort operational
+logging, not a durable, tamper-proof, or compliance audit ledger; the external
+log collector controls retention and access.
 
 ## Documentation
 

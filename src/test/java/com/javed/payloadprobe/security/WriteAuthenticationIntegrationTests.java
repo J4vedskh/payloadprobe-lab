@@ -15,6 +15,7 @@ import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import com.javed.payloadprobe.observability.RequestCompletionLoggingFilter;
+import com.javed.payloadprobe.observability.WriteAuditLoggingFilter;
 import java.util.UUID;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
@@ -153,14 +154,50 @@ class WriteAuthenticationIntegrationTests {
     }
 
     @Test
+    void acceptedCredentialProducesOneBoundedWriteAuditEvent() throws Exception {
+        String key = "accepted-audit-key-" + UUID.randomUUID();
+        Logger auditLogger = (Logger) LoggerFactory.getLogger(WriteAuditLoggingFilter.class);
+        ListAppender<ILoggingEvent> auditAppender = new ListAppender<>();
+        auditAppender.start();
+        auditLogger.addAppender(auditAppender);
+
+        try {
+            mockMvc.perform(withCredential(post("/api/responses/{key}", key)
+                            .contentType(MediaType.APPLICATION_XML)
+                            .content("<response/>")))
+                    .andExpect(status().isCreated());
+        } finally {
+            auditLogger.detachAppender(auditAppender);
+            auditAppender.stop();
+        }
+
+        assertThat(auditAppender.list).singleElement().satisfies(event -> {
+            assertThat(event.getFormattedMessage()).isEqualTo("write.audit.completed");
+            assertThat(event.getKeyValuePairs())
+                    .extracting(pair -> pair.key, pair -> pair.value)
+                    .contains(
+                            org.assertj.core.groups.Tuple.tuple("route", "/api/responses/{key}"),
+                            org.assertj.core.groups.Tuple.tuple("authentication", "accepted"),
+                            org.assertj.core.groups.Tuple.tuple("status", 201),
+                            org.assertj.core.groups.Tuple.tuple("outcome", "success"));
+            assertThat(event.getFormattedMessage() + event.getKeyValuePairs())
+                    .doesNotContain(key, TOKEN);
+        });
+    }
+
+    @Test
     @ExtendWith(OutputCaptureExtension.class)
     void rejectedCredentialsAreLoggedWithoutCredentialOrPathValues(CapturedOutput output) throws Exception {
         String key = "private-auth-key-" + UUID.randomUUID();
         String wrongToken = "wrong-authorization-secret";
         Logger requestLogger = (Logger) LoggerFactory.getLogger(RequestCompletionLoggingFilter.class);
-        ListAppender<ILoggingEvent> appender = new ListAppender<>();
-        appender.start();
-        requestLogger.addAppender(appender);
+        Logger auditLogger = (Logger) LoggerFactory.getLogger(WriteAuditLoggingFilter.class);
+        ListAppender<ILoggingEvent> requestAppender = new ListAppender<>();
+        ListAppender<ILoggingEvent> auditAppender = new ListAppender<>();
+        requestAppender.start();
+        auditAppender.start();
+        requestLogger.addAppender(requestAppender);
+        auditLogger.addAppender(auditAppender);
 
         try {
             expectUnauthorized(post("/api/responses/{key}", key)
@@ -168,16 +205,30 @@ class WriteAuthenticationIntegrationTests {
                     .contentType(MediaType.APPLICATION_XML)
                     .content("<response/>"));
         } finally {
-            requestLogger.detachAppender(appender);
-            appender.stop();
+            requestLogger.detachAppender(requestAppender);
+            auditLogger.detachAppender(auditAppender);
+            requestAppender.stop();
+            auditAppender.stop();
         }
 
-        assertThat(appender.list).singleElement().satisfies(event -> {
+        assertThat(requestAppender.list).singleElement().satisfies(event -> {
             assertThat(event.getFormattedMessage()).isEqualTo("request.completed");
             assertThat(event.getKeyValuePairs())
                     .extracting(pair -> pair.key, pair -> pair.value)
                     .contains(
                             org.assertj.core.groups.Tuple.tuple("route", "/api/responses/{key}"),
+                            org.assertj.core.groups.Tuple.tuple("status", 401),
+                            org.assertj.core.groups.Tuple.tuple("outcome", "client_error"));
+            assertThat(event.getFormattedMessage() + event.getKeyValuePairs())
+                    .doesNotContain(key, wrongToken, TOKEN);
+        });
+        assertThat(auditAppender.list).singleElement().satisfies(event -> {
+            assertThat(event.getFormattedMessage()).isEqualTo("write.audit.completed");
+            assertThat(event.getKeyValuePairs())
+                    .extracting(pair -> pair.key, pair -> pair.value)
+                    .contains(
+                            org.assertj.core.groups.Tuple.tuple("route", "/api/responses/{key}"),
+                            org.assertj.core.groups.Tuple.tuple("authentication", "rejected"),
                             org.assertj.core.groups.Tuple.tuple("status", 401),
                             org.assertj.core.groups.Tuple.tuple("outcome", "client_error"));
             assertThat(event.getFormattedMessage() + event.getKeyValuePairs())

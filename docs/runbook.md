@@ -198,8 +198,27 @@ Missing, malformed, duplicate, or wrong headers return `401` with
 `{"message":"Write authentication required."}`, `WWW-Authenticate`, and
 `Cache-Control: no-store`. Do not put the token in shell history, tickets, or
 logs. The service does not log it, but TLS and network access controls are
-still required. This shared token does not identify users, define roles, or
-create an audit trail.
+still required. This shared token does not identify users or define roles.
+
+## Write Audit Events
+
+Every attempt on exactly the nine write routes emits one
+`write.audit.completed` console event. Its fixed event value is
+`protected_write_completed`; it contains only these bounded fields:
+
+| Field | Meaning |
+| --- | --- |
+| `method` | Request method |
+| `route` | Allow-listed write route template |
+| `authentication` | `not_required`, `accepted`, `rejected`, or `undetermined` |
+| `status` | Final HTTP status |
+| `outcome` | `success`, `client_error`, `server_error`, or `other` |
+
+The event contains no key, scenario name, token, body, query, header, cookie,
+IP address, request ID, file path, exception, duration, or user identity.
+Public and read routes emit no audit event. It is best-effort console logging,
+not a durable, tamper-proof, or compliance audit ledger. Configure retention
+and access controls in the external log collector.
 
 ## Request Completion Logs
 

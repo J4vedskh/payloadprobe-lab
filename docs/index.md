@@ -12,6 +12,7 @@ integration adapters, or downstream API behavior.
 | Response history | Retain bounded XML revisions and retrieve an exact prior payload when needed |
 | Named scenarios | Reuse ordered test selections and resolve current XML as portable response sets |
 | Optional write authentication | Protect the nine write endpoints with a shared Bearer token when enabled |
+| Protected-write audit events | Emit one privacy-bounded console event for every write attempt |
 | Legacy compatibility | Keep original PayloadProbe routes working during modernization |
 | Operational readiness | Health checks, Docker, Kubernetes starter manifests, and Prometheus scrape config |
 | Portfolio delivery | CI, OpenAPI, live docs, roadmap, runbook, and daily improvement automation |
