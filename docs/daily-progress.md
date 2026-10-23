@@ -33,3 +33,9 @@ Every run should report:
 - result of each check
 - merged commit hash when merged
 - GitHub Pages deployment status
+
+## Progress Log
+
+| Date | Improvement | Verification |
+| --- | --- | --- |
+| 2026-10-23 | Upgraded the Spring Boot parent from 3.5.11 to 3.5.16 while retaining Java 17. | `mvn -U -T 1C clean test` passed: 190 tests; resolved Boot tree is 3.5.16; `mkdocs build --strict` passed |

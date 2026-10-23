@@ -11,7 +11,7 @@ Live docs: https://j4vedskh.github.io/payloadprobe-lab/
 
 | Area | Implementation |
 | --- | --- |
-| Backend | Java 17, Spring Boot 3, REST APIs, validation, Actuator |
+| Backend | Java 17, Spring Boot 3.5.16, REST APIs, validation, Actuator |
 | Storage | JSON-backed response catalog with bounded, retained response history |
 | Compatibility | Legacy aliases for the original PayloadProbe endpoints |
 | Platform | Dockerfile, Docker Compose, Kubernetes starter manifests |
@@ -24,6 +24,12 @@ Build and test with JDK 17:
 ```bash
 mvn -T 1C test
 ```
+
+Spring Boot is pinned to `3.5.16`, the final open-source release in the 3.5.x
+line. This keeps the Java 17 baseline while incorporating the line's latest
+fixes. A Spring Boot 4.x migration remains a separate major-version
+compatibility task. See the official
+[3.5.16 release announcement](https://spring.io/blog/2026/06/25/spring-boot-3-5-16-available-now/).
 
 Run locally:
 

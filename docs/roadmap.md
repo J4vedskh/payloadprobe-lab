@@ -12,10 +12,11 @@
 - Add bounded response version history with retained XML reads.
 - Add optional Bearer authentication for exactly the nine write endpoints.
 - Add privacy-bounded structured audit events for protected write attempts.
+- Upgrade Spring Boot from 3.5.11 to 3.5.16 after Java 17 compatibility and Spring advisory review.
 
 ## Near Term
 
-- Review and update direct and transitive dependencies for security fixes.
+- Plan and verify the Spring Boot 4.x migration as a separate major-version compatibility upgrade.
 
 ## Platform
 
