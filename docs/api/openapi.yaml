@@ -42,7 +42,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/ResponseSetDocument"
+              $ref: "#/components/schemas/ResponseSetImportDocument"
       security:
         - {}
         - WriteBearerAuth: []
@@ -797,9 +797,24 @@ components:
             - 1
         responses:
           type: array
-          description: >-
-            Import requests must contain at least one entry; exports may be
-            empty. The configurable entry limit defaults to 100.
+          description: Exports may be empty. The configurable entry limit defaults to 100.
+          items:
+            $ref: "#/components/schemas/ResponseSetEntry"
+    ResponseSetImportDocument:
+      type: object
+      additionalProperties: false
+      required:
+        - version
+        - responses
+      properties:
+        version:
+          type: integer
+          enum:
+            - 1
+        responses:
+          type: array
+          minItems: 1
+          description: Import requests must contain at least one entry; the configurable entry limit defaults to 100.
           items:
             $ref: "#/components/schemas/ResponseSetEntry"
     ResponseSetEntry:
