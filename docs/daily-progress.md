@@ -38,5 +38,6 @@ Every run should report:
 
 | Date | Improvement | Verification |
 | --- | --- | --- |
+| 2026-10-31 | Documented the public `/help` endpoint catalog with closed OpenAPI schemas for its response and endpoint entries. | Parsed contract and runtime controller tests; `mvn -o -T 1C clean test` passed: 192 tests; `mkdocs build --strict` passed |
 | 2026-10-30 | Split response-set import/export OpenAPI schemas so empty imports are rejected by contract while empty exports remain valid. | Parsed contract test and `mvn -o -T 1C clean test` passed: 191 tests; `mkdocs build --strict` passed |
 | 2026-10-23 | Upgraded the Spring Boot parent from 3.5.11 to 3.5.16 while retaining Java 17. | `mvn -U -T 1C clean test` passed: 190 tests; resolved Boot tree is 3.5.16; `mkdocs build --strict` passed |

@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.javed.payloadprobe.store.PayloadResponseStore;
 import java.util.List;
@@ -167,6 +168,19 @@ class LegacyPayloadControllerTests {
                 .andReturn();
 
         ApiHelpResponse help = objectMapper.readValue(result.getResponse().getContentAsByteArray(), ApiHelpResponse.class);
+        JsonNode document = objectMapper.readTree(result.getResponse().getContentAsByteArray());
+
+        assertThat(document.size()).isEqualTo(1);
+        assertThat(document.has("endpoints")).isTrue();
+        assertThat(document.path("endpoints").isArray()).isTrue();
+        assertThat(document.path("endpoints").size()).isGreaterThan(0);
+        document.path("endpoints").forEach(endpoint -> {
+            assertThat(endpoint.size()).isEqualTo(3);
+            assertThat(endpoint.path("method").asText())
+                    .isIn("GET", "POST", "PUT", "DELETE");
+            assertThat(endpoint.path("path").asText()).startsWith("/");
+            assertThat(endpoint.path("description").asText()).isNotBlank();
+        });
 
         assertThat(help.endpoints())
                 .extracting(ApiEndpoint::method, ApiEndpoint::path)
@@ -188,6 +202,8 @@ class LegacyPayloadControllerTests {
                         tuple("PUT", "/api/scenarios/{name}"),
                         tuple("DELETE", "/api/scenarios/{name}"),
                         tuple("GET", "/help"));
+        assertThat(help.endpoints())
+                .contains(new ApiEndpoint("GET", "/help", "List supported endpoints."));
     }
 
     @ParameterizedTest(name = "{0}")

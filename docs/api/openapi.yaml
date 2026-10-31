@@ -472,6 +472,10 @@ paths:
       responses:
         "200":
           description: Endpoint catalog
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiHelpResponse"
 components:
   securitySchemes:
     WriteBearerAuth:
@@ -695,6 +699,42 @@ components:
         minimum: 1
       example: 2
   schemas:
+    ApiHelpResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - endpoints
+      properties:
+        endpoints:
+          type: array
+          minItems: 1
+          description: Supported modern and legacy endpoints.
+          items:
+            $ref: "#/components/schemas/ApiEndpoint"
+    ApiEndpoint:
+      type: object
+      additionalProperties: false
+      required:
+        - method
+        - path
+        - description
+      properties:
+        method:
+          type: string
+          enum:
+            - GET
+            - POST
+            - PUT
+            - DELETE
+          example: GET
+        path:
+          type: string
+          minLength: 1
+          example: /api/responses
+        description:
+          type: string
+          minLength: 1
+          example: List all stored XML response keys.
     PayloadScenarioRequest:
       type: object
       additionalProperties: false
