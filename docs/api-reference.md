@@ -286,6 +286,22 @@ above.
 | `POST` | `/default` | Default XML sample |
 | `GET` | `/help` | Endpoint catalog |
 
+`GET /help` is public and returns a JSON catalog of both modern and legacy
+routes. Every catalog entry contains a non-empty `method`, `path`, and
+`description`:
+
+```json
+{
+  "endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/responses",
+      "description": "List all stored XML response keys."
+    }
+  ]
+}
+```
+
 Legacy aliases use the same key and body validation rules as the modern API.
 For compatibility, a missing legacy `GET|POST /fetch/{key}` still returns
 `200 application/xml` with a failure payload. The modern fetch route returns a
