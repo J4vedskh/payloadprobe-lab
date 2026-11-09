@@ -15,8 +15,8 @@ import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import com.javed.payloadprobe.observability.RequestCompletionLoggingFilter;
 import com.javed.payloadprobe.observability.WriteAuditLoggingFilter;
 import java.util.UUID;
@@ -24,11 +24,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.actuate.observability.AutoConfigureObservability;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -38,7 +37,6 @@ import org.springframework.test.web.servlet.MockMvc;
             "payloadprobe.scenarios.path=target/test-data/scenarios-${random.uuid}.json",
             "management.health.diskspace.enabled=false"
         })
-@AutoConfigureObservability
 @AutoConfigureMockMvc
 class PayloadProbeApplicationTests {
 

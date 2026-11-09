@@ -1,8 +1,6 @@
 package com.javed.payloadprobe.store;
 
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
+import com.javed.payloadprobe.config.PayloadJsonMappers;
 import com.javed.payloadprobe.config.PayloadScenarioProperties;
 import jakarta.annotation.PostConstruct;
 import java.io.IOException;
@@ -18,6 +16,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.regex.Pattern;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Repository;
+import tools.jackson.databind.ObjectMapper;
 
 @Repository
 public class JsonPayloadScenarioStore implements PayloadScenarioStore {
@@ -43,9 +42,7 @@ public class JsonPayloadScenarioStore implements PayloadScenarioStore {
             ObjectMapper objectMapper,
             PayloadScenarioProperties properties,
             AtomicFileMover atomicFileMover) {
-        this.objectMapper = objectMapper.copy()
-                .enable(SerializationFeature.INDENT_OUTPUT)
-                .enable(JsonParser.Feature.STRICT_DUPLICATE_DETECTION);
+        this.objectMapper = PayloadJsonMappers.durableStoreMapper(objectMapper);
         this.properties = properties;
         this.atomicFileMover = atomicFileMover;
         validateLimits();

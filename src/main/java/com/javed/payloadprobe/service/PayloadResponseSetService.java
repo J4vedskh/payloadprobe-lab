@@ -1,17 +1,11 @@
 package com.javed.payloadprobe.service;
 
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.StreamReadConstraints;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.ObjectReader;
-import com.fasterxml.jackson.databind.ObjectWriter;
 import com.javed.payloadprobe.api.InvalidXmlPayloadException;
 import com.javed.payloadprobe.api.PayloadResponseSetDocument;
 import com.javed.payloadprobe.api.PayloadResponseSetEntry;
 import com.javed.payloadprobe.api.PayloadResponseSetException;
 import com.javed.payloadprobe.api.XmlPayloadValidator;
+import com.javed.payloadprobe.config.PayloadJsonMappers;
 import com.javed.payloadprobe.store.PayloadResponseStore;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -27,6 +21,9 @@ import java.util.Set;
 import java.util.regex.Pattern;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectWriter;
 
 @Service
 public class PayloadResponseSetService {
@@ -38,7 +35,7 @@ public class PayloadResponseSetService {
 
     private final PayloadResponseStore store;
     private final XmlPayloadValidator xmlPayloadValidator;
-    private final ObjectReader documentReader;
+    private final PayloadJsonMappers.StrictDocumentReader<PayloadResponseSetDocument> documentReader;
     private final ObjectWriter documentWriter;
     private final int maxEntries;
     private final int maxDocumentBytes;
@@ -60,16 +57,12 @@ public class PayloadResponseSetService {
         this.maxEntries = maxEntries;
         this.maxDocumentBytes = maxDocumentBytes;
 
-        ObjectMapper strictObjectMapper = objectMapper.copy()
-                .enable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
-                .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
-                .enable(JsonParser.Feature.STRICT_DUPLICATE_DETECTION);
-        strictObjectMapper.getFactory().setStreamReadConstraints(StreamReadConstraints.builder()
-                .maxNestingDepth(20)
-                .maxStringLength(maxDocumentBytes)
-                .build());
-        this.documentReader = strictObjectMapper.readerFor(PayloadResponseSetDocument.class);
-        this.documentWriter = strictObjectMapper.writerFor(PayloadResponseSetDocument.class);
+        this.documentReader = PayloadJsonMappers.strictDocumentReader(
+                objectMapper,
+                PayloadResponseSetDocument.class,
+                20,
+                maxDocumentBytes);
+        this.documentWriter = objectMapper.writerFor(PayloadResponseSetDocument.class);
         this.successfulImports = importCounter(meterRegistry, "success");
         this.rejectedImports = importCounter(meterRegistry, "rejected");
     }
@@ -120,7 +113,7 @@ public class PayloadResponseSetService {
                 throw new PayloadResponseSetException(PayloadResponseSetException.Reason.INVALID_DOCUMENT);
             }
             return documentReader.readValue(documentBytes);
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new PayloadResponseSetException(
                     PayloadResponseSetException.Reason.INVALID_DOCUMENT,
                     exception);
@@ -176,7 +169,7 @@ public class PayloadResponseSetService {
     private int serializedSize(PayloadResponseSetDocument document) {
         try {
             return documentWriter.writeValueAsBytes(document).length;
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new PayloadResponseSetException(
                     PayloadResponseSetException.Reason.EXPORT_TOO_LARGE,
                     exception);

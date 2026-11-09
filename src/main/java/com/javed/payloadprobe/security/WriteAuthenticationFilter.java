@@ -1,6 +1,5 @@
 package com.javed.payloadprobe.security;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.javed.payloadprobe.api.MessageResponse;
 import com.javed.payloadprobe.config.PayloadWriteAuthenticationProperties;
 import jakarta.servlet.FilterChain;
@@ -19,6 +18,7 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 import org.springframework.web.servlet.HandlerMapping;
+import tools.jackson.databind.ObjectMapper;
 
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE + 10)

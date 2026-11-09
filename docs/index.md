@@ -1,6 +1,6 @@
 # PayloadProbe Lab
 
-PayloadProbe Lab is a Java 17 and Spring Boot 3.5.16 service for managing named
+PayloadProbe Lab is a Java 17 and Spring Boot 4.1.2 service for managing named
 XML mock responses.
 It is designed for teams that need predictable payloads while testing middleware,
 integration adapters, or downstream API behavior.

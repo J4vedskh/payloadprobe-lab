@@ -1,10 +1,6 @@
 package com.javed.payloadprobe.store;
 
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
+import com.javed.payloadprobe.config.PayloadJsonMappers;
 import com.javed.payloadprobe.config.PayloadProbeProperties;
 import com.javed.payloadprobe.config.PayloadResponseHistoryProperties;
 import io.micrometer.core.instrument.Counter;
@@ -29,6 +25,9 @@ import java.util.regex.Pattern;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Repository;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 @Repository
 public class JsonPayloadResponseStore implements PayloadResponseStore {
@@ -80,9 +79,7 @@ public class JsonPayloadResponseStore implements PayloadResponseStore {
             PayloadResponseHistoryProperties historyProperties,
             MeterRegistry meterRegistry,
             AtomicFileMover atomicFileMover) {
-        this.objectMapper = objectMapper.copy()
-                .enable(SerializationFeature.INDENT_OUTPUT)
-                .enable(JsonParser.Feature.STRICT_DUPLICATE_DETECTION);
+        this.objectMapper = PayloadJsonMappers.durableStoreMapper(objectMapper);
         this.properties = properties;
         this.historyProperties = historyProperties;
         this.atomicFileMover = atomicFileMover;
