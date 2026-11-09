@@ -6,7 +6,7 @@ import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.javed.payloadprobe.api.PayloadScenarioException;
 import com.javed.payloadprobe.config.PayloadScenarioProperties;
 import com.javed.payloadprobe.store.PayloadResponseStore;

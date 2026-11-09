@@ -1,11 +1,5 @@
 package com.javed.payloadprobe.service;
 
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.StreamReadConstraints;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.ObjectReader;
 import com.javed.payloadprobe.api.PayloadResponseSetDocument;
 import com.javed.payloadprobe.api.PayloadResponseSetEntry;
 import com.javed.payloadprobe.api.PayloadResponseSetException;
@@ -13,6 +7,7 @@ import com.javed.payloadprobe.api.PayloadScenarioCatalogResponse;
 import com.javed.payloadprobe.api.PayloadScenarioException;
 import com.javed.payloadprobe.api.PayloadScenarioRequest;
 import com.javed.payloadprobe.api.PayloadScenarioSummary;
+import com.javed.payloadprobe.config.PayloadJsonMappers;
 import com.javed.payloadprobe.config.PayloadScenarioProperties;
 import com.javed.payloadprobe.store.PayloadResponseStore;
 import com.javed.payloadprobe.store.PayloadScenario;
@@ -26,6 +21,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 import org.springframework.stereotype.Service;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 
 @Service
 public class PayloadScenarioService {
@@ -36,7 +33,7 @@ public class PayloadScenarioService {
     private final PayloadResponseStore responseStore;
     private final PayloadResponseSetService responseSetService;
     private final PayloadScenarioProperties properties;
-    private final ObjectReader requestReader;
+    private final PayloadJsonMappers.StrictDocumentReader<PayloadScenarioRequest> requestReader;
 
     public PayloadScenarioService(
             PayloadScenarioStore scenarioStore,
@@ -48,15 +45,11 @@ public class PayloadScenarioService {
         this.responseStore = responseStore;
         this.responseSetService = responseSetService;
         this.properties = properties;
-        ObjectMapper strictObjectMapper = objectMapper.copy()
-                .enable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
-                .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
-                .enable(JsonParser.Feature.STRICT_DUPLICATE_DETECTION);
-        strictObjectMapper.getFactory().setStreamReadConstraints(StreamReadConstraints.builder()
-                .maxNestingDepth(10)
-                .maxStringLength(properties.getMaxDocumentBytes())
-                .build());
-        this.requestReader = strictObjectMapper.readerFor(PayloadScenarioRequest.class);
+        this.requestReader = PayloadJsonMappers.strictDocumentReader(
+                objectMapper,
+                PayloadScenarioRequest.class,
+                10,
+                properties.getMaxDocumentBytes());
     }
 
     public PayloadScenarioCatalogResponse list() {
@@ -139,7 +132,7 @@ public class PayloadScenarioService {
             return requestReader.readValue(documentBytes);
         } catch (PayloadScenarioException exception) {
             throw exception;
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new PayloadScenarioException(PayloadScenarioException.Reason.INVALID_DOCUMENT, exception);
         } catch (IOException exception) {
             throw new PayloadScenarioException(PayloadScenarioException.Reason.INVALID_DOCUMENT, exception);

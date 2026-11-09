@@ -3,7 +3,7 @@ package com.javed.payloadprobe.store;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.javed.payloadprobe.config.PayloadScenarioProperties;
 import java.io.IOException;
 import java.nio.file.AtomicMoveNotSupportedException;

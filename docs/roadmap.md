@@ -13,12 +13,9 @@
 - Add optional Bearer authentication for exactly the nine write endpoints.
 - Add privacy-bounded structured audit events for protected write attempts.
 - Upgrade Spring Boot from 3.5.11 to 3.5.16 after Java 17 compatibility and Spring advisory review.
+- Upgrade Spring Boot from 3.5.16 to 4.1.2 with Jackson 3 and the modular MVC test starter while retaining Java 17.
 - Distinguish non-empty response-set imports from potentially empty exports in the OpenAPI contract.
 - Document the public `/help` endpoint catalog with an exact, tested OpenAPI response schema.
-
-## Near Term
-
-- Plan and verify the Spring Boot 4.x migration as a separate major-version compatibility upgrade.
 
 ## Platform
 
